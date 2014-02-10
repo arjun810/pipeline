@@ -1,5 +1,6 @@
 import os
 import itertools
+import types
 
 import lucidity
 
@@ -66,7 +67,14 @@ class ResourceIterator(object):
                 yield v
 
     def all(self):
-        return [list(self.each())]
+        for v in [list(self.each())]:
+            yield v
+
+    def first(self):
+        v = next(self.each(), None)
+        if v is None:
+            raise ValueError("No values found matching conditions {0}.".format(self.conditions))
+        return v
 
     def where(self, conditions):
         valid_keys = self.source.valid_keys()
@@ -107,14 +115,23 @@ class FileResource(Resource):
         return self.variables
 
     def values(self):
-        for instance in self.pattern.instances:
-            yield instance
+        return self.pattern.instances
+
+    def create(self, input):
+
+        # If input is a single element, then both the created resource's
+        # variables should be a subset of or equal to the input resource's
+        # variables
+        if not isinstance(input, list):
+            if 4:
+                pass
 
 
 class Pipeline(object):
 
     def __init__(self):
         self.current_dir = None
+        self.queue = []
 
     def file(self, pattern):
         if self.current_dir is None:
@@ -133,3 +150,24 @@ class Pipeline(object):
             new_dir = os.path.abspath(os.path.expanduser(new_dir))
 
         self.current_dir = new_dir
+
+    def append_task(self, task, input, output):
+        self.queue.append((task, input, output))
+
+    def step(self, task, inputs, output_resource):
+
+        # Case 1: inputs is not a generator
+        if not isinstance(inputs, types.GeneratorType):
+            if len(inputs) == len(output_resource):
+                for i, o in zip(inputs, output_resource):
+                    self.append_task(task, i, o)
+            else:
+                raise ValueError("Input and output lists must be of same length."
+                                 "input: {0}, output: {1}".format(len(inputs),
+                                                                  len(output_resource)))
+
+        # Case 2: inputs is a generator
+        for input in inputs:
+            output_resource.create(input)
+            self.queue.append((task, input, outputs))
+        print self.queue
