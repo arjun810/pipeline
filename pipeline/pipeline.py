@@ -19,6 +19,7 @@ class FilePattern(object):
         # name the template the pattern itself, to ensure there are no
         # conflicts.
         self.template = lucidity.Template(self.pattern, self.pattern)
+        self.variables = self.template.keys()
 
     def pattern_root(self):
 
@@ -37,20 +38,18 @@ class FilePattern(object):
         candidates = [os.path.join(dp, f) for dp, dn, fn in os.walk(root) for f in fn]
         self.filenames = []
         self.instances = []
-        self.variables = None
+
         for filename in candidates:
             try:
                 instance = self.template.parse(filename)
-
-                # Do this before adding the filename to the instance
-                if self.variables is None:
-                    self.variables = instance.keys()
-
                 instance['filename'] = filename
                 self.filenames.append(filename)
                 self.instances.append(instance)
-            except:
+            except lucidity.ParseError:
                 pass
+
+    def format(self, data):
+        return self.template.format(data)
 
 class ResourceIterator(object):
 
@@ -96,8 +95,8 @@ class FileResource(Resource):
 
     def __init__(self, root_dir, pattern):
         self.pattern = FilePattern(root_dir, pattern)
-        self.pattern.discover()
         self.variables = self.pattern.variables
+        self.pattern.discover()
 
     def __iter__(self):
         return ResourceIterator(self).each()
@@ -117,14 +116,51 @@ class FileResource(Resource):
     def values(self):
         return self.pattern.instances
 
-    def create(self, input):
+    def build(self, input):
 
-        # If input is a single element, then both the created resource's
-        # variables should be a subset of or equal to the input resource's
-        # variables
         if not isinstance(input, list):
-            if 4:
-                pass
+            # Terrible. The inputs/outputs need to be factored into objects...
+            input_variables = set(input.keys())
+            input_variables.remove("filename")
+
+            # If input is a single element, then the built resource's
+            # variables should be equal to the input resource's variables
+            if input_variables != set(self.variables):
+                raise ValueError("Expected variables {0}. Got {1}".format(input_variables,
+                                                                          self.variables))
+            output = {}
+            for k, v in input.items():
+                output[k] = v
+        else:
+            # If we have a list of inputs, then the built resource must be a
+            # reduction and have fewer keys than the inputs. Any keys that the
+            # built resource has must be identical across all inputs.
+            set_variables = set(self.variables)
+            output = {}
+
+            # Initialize output using the first input
+            for k in self.variables:
+                if k not in input[0]:
+                    raise ValueError("Expected {0} to be a variable of {1}".format(k, input[0]))
+                output[k] = input[0][k]
+
+            for item in input:
+                input_variables = set(item.keys())
+                input_variables.remove("filename")
+                if not set_variables.issubset(input_variables):
+                    raise ValueError("Expected {1} to be a subset of {0}".format(input_variables,
+                                                                                 self.variables))
+                for k in self.variables:
+                    if output[k] != item[k]:
+                        raise ValueError("Expected {0}[{1}] to have value {2}".format(item, k, output[k]))
+                    pass
+
+        output["filename"] = self.pattern.format(output)
+        return output
+
+
+
+
 
 
 class Pipeline(object):
@@ -154,20 +190,26 @@ class Pipeline(object):
     def append_task(self, task, input, output):
         self.queue.append((task, input, output))
 
+    def step_lists(self, task, inputs, outputs):
+        if len(inputs) == len(outputs):
+            for i, o in zip(inputs, outputs):
+                self.append_task(task, i, o)
+        else:
+            raise ValueError("Input and output lists must be of same length."
+                                "input: {0}, output: {1}".format(len(inputs),
+                                                                 len(outputs)))
+
+
+    def step_gens(self, task, inputs, output_resource):
+        for input in inputs:
+            output = output_resource.build(input)
+            self.append_task(task, input, output)
+
     def step(self, task, inputs, output_resource):
 
-        # Case 1: inputs is not a generator
         if not isinstance(inputs, types.GeneratorType):
-            if len(inputs) == len(output_resource):
-                for i, o in zip(inputs, output_resource):
-                    self.append_task(task, i, o)
-            else:
-                raise ValueError("Input and output lists must be of same length."
-                                 "input: {0}, output: {1}".format(len(inputs),
-                                                                  len(output_resource)))
-
-        # Case 2: inputs is a generator
-        for input in inputs:
-            output_resource.create(input)
-            self.queue.append((task, input, outputs))
-        print self.queue
+            # Case 1: inputs is not a generator
+            return self.step_lists(task, inputs, output_resource)
+        else:
+            # Case 2: inputs is a generator
+            return self.step_gens(task, inputs, output_resource)

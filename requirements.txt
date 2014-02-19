@@ -1,1 +1,1 @@
-lucidity
+git+git://github.com/arjun810/lucidity.git
