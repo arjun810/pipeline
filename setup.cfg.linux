@@ -1,0 +1,4 @@
+[nosy]
+base_path = ./
+glob_patterns = *.py
+options = --with-notify --no-start-message -a !skip
