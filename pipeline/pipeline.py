@@ -56,12 +56,13 @@ class ResourceIterator(object):
     def __init__(self, source):
         self.source = source
         self.conditions = {}
+        self.values = self.source.values()
 
     def __iter__(self):
         return self.each()
 
     def each(self):
-        for v in self.source.values():
+        for v in self.values:
             if self.accept(v):
                 yield v
 
@@ -74,6 +75,15 @@ class ResourceIterator(object):
         if v is None:
             raise ValueError("No values found matching conditions {0}.".format(self.conditions))
         return v
+
+    def group_by(self, key):
+        # TODO as stated elsewhere, values should probably be something other
+        # than dicts, so that this doesn't need to be such a hack.
+        keyfunc = lambda x: x[key]
+        values = sorted(self.values, key=keyfunc)
+        grouped = itertools.groupby(values, key=keyfunc)
+        self.values = [list(g[1]) for g in grouped]
+        return self
 
     def where(self, conditions):
         valid_keys = self.source.valid_keys()
@@ -110,6 +120,9 @@ class FileResource(Resource):
     def where(self, **kwargs):
         return ResourceIterator(self).where(kwargs)
 
+    def group_by(self, key):
+        return ResourceIterator(self).group_by(key)
+
     def valid_keys(self):
         return self.variables
 
@@ -118,7 +131,7 @@ class FileResource(Resource):
 
     def build(self, input):
 
-        if not isinstance(input, list):
+        if not isinstance(input, list) and not isinstance(input, tuple):
             # Terrible. The inputs/outputs need to be factored into objects...
             input_variables = set(input.keys())
             input_variables.remove("filename")
@@ -138,6 +151,7 @@ class FileResource(Resource):
             set_variables = set(self.variables)
             output = {}
 
+            print input
             # Initialize output using the first input
             for k in self.variables:
                 if k not in input[0]:

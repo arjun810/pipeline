@@ -145,6 +145,13 @@ class PipelineResourceTest(TestCase):
         iter_len_eq(RawImage.where(scene=0).all(), 1)
         iter_len_eq(RawImage.where(scene=0, camera="N1").all(), 1)
 
+        iter_len_eq(RawImage.group_by("scene"), 2)
+        iter_len_eq(RawImage.group_by("camera"), 3)
+        iter_len_eq(RawImage.group_by("scene").each(), 2)
+        iter_len_eq(RawImage.group_by("camera").each(), 3)
+        iter_len_eq(RawImage.group_by("scene").all(), 1)
+        iter_len_eq(RawImage.group_by("camera").all(), 1)
+
         raw_image = RawImage.where(scene=0).first()
         eq_(raw_image["scene"], "0")
 
@@ -302,7 +309,6 @@ class PipelineResourceTest(TestCase):
         summary = Summary.build(raw_images)
 
     def test_build_resource_grouped(self):
-        # TODO this should work
         path = os.path.join(fixtures_abspath, "test1")
         self.pipeline.chdir(path)
         RawImage = self.pipeline.file("{camera}_{scene}.jpg")
@@ -316,8 +322,8 @@ class PipelineResourceTest(TestCase):
             eq_(summary['filename'], expected)
             eq_(summary.get('scene', None), None)
 
+    @raises(ValueError)
     def test_build_resource_grouped_is_subset(self):
-        # TODO this should raise error
         path = os.path.join(fixtures_abspath, "test1")
         self.pipeline.chdir(path)
         RawImage = self.pipeline.file("{camera}_{scene}.jpg")
@@ -325,13 +331,6 @@ class PipelineResourceTest(TestCase):
 
         group = RawImage.group_by("camera").first()
         summary = Summary.build(group)
-
-    @attr('skip')
-    def test_invalid_output_resource_spec(self):
-        fail
-        pass
-        #TODO
-
 
 
 class PipelineStepTest(TestCase):
