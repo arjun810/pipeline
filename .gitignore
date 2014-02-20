@@ -47,3 +47,6 @@ coverage/
 
 # Sphinx documentation
 docs/_build/
+
+# Ignore nosy setup.cfg to allow multi-platform setup.cfg
+setup.cfg
