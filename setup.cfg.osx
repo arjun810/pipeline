@@ -1,4 +1,5 @@
 [nosy]
 base_path = ./
 glob_patterns = *.py
-options = --with-nosegrowlnotify -a !skip
+#options = --with-nosegrowlnotify -a !skip
+options = -a !skip
