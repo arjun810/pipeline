@@ -237,15 +237,6 @@ class Job(object):
     def id(self):
         return "{0}_{1}".format(self.task_name, self.number)
 
-class Stage(object):
-
-    def __init__(self, name):
-        self.name = name
-        self.job_ids = []
-
-    def append(self, job_id):
-        self.job_ids.append(job_id)
-
 def _work(job_queue, result_queue):
     while True:
         job = None
@@ -389,14 +380,11 @@ class Pipeline(object):
 
     def __init__(self):
         self.current_dir = None
-        self.stages = []
         self.jobs = {}
         self.globals = {}
 
         # Contains both resources and jobs
         self.resource_job_graph = DependencyGraph()
-
-        #self.dispatcher = MultiprocessingDispatcher()
 
     def file(self, template, name=None):
         if self.current_dir is None:
@@ -422,12 +410,7 @@ class Pipeline(object):
 
         self.current_dir = new_dir
 
-    def determine_stage_name(self, task):
-        return "stagename"
-
     def step(self, task, inputs, output_resource, **kwargs):
-        #stage_name = self.get_stage_name(task)
-        #stage = Stage(stage_name)
         params = self.globals.copy()
         params.update(kwargs)
         for i, input in enumerate(inputs):
@@ -436,7 +419,6 @@ class Pipeline(object):
             self.resource_job_graph.add(input, job)
             self.resource_job_graph.add(job, output)
             self.jobs[job.id] = job
-        #self.stages.append(stage)
 
     def compute_job_graph(self):
         topological_joint = self.resource_job_graph.topological_sort()
@@ -477,17 +459,3 @@ class Pipeline(object):
         for output in outputs:
             spec += "\t{0}\n".format(output.filename)
         return spec
-
-
-    #    for stage in self.stages:
-    #        self.dispatcher
-
-    #    self.workers = []
-    #    self.job_queue = []
-    #    for i in range(self.num_processes):
-    #        worker = mp.Process(target=_work, args=(task_queue
-    #    = multiprocessing.Pool(self.num_processes)
-    #    for task in self.queue:
-    #        print "here"
-    #        self.execute_task(task)
-    #    self.pool.join()

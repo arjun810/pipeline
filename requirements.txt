@@ -1,3 +1,4 @@
 git+git://github.com/arjun810/lucidity.git
 nose-parameterized
 networkx
+cloud
