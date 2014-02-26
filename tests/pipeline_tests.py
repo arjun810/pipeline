@@ -1,5 +1,6 @@
 import sys
 import os
+import shutil
 import glob
 
 from unittest import TestCase
@@ -8,7 +9,7 @@ from nose.plugins.attrib import attr
 
 from nose_parameterized import parameterized
 
-from pipeline import Pipeline, FilePattern
+from pipeline import Pipeline, FilePattern, DependencyGraph
 
 fixtures_abspath = os.path.join(os.path.dirname(__file__), "fixtures")
 
@@ -360,61 +361,112 @@ class PipelineStepTest(TestCase):
         ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg", name="ProcessedImage")
         self.pipeline.step(no_op, RawImage.each(), ProcessedImage)
 
-        eq_(len(self.pipeline.queue), iter_len(RawImage))
+        eq_(len(self.pipeline.jobs), iter_len(RawImage))
 
     def test_each_io_2(self):
         RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
         ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg", name="ProcessedImage")
         self.pipeline.step(no_op, RawImage, ProcessedImage)
 
-        eq_(len(self.pipeline.queue), iter_len(RawImage))
+        eq_(len(self.pipeline.jobs), iter_len(RawImage))
 
     def test_all_io(self):
         RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
         ProcessedImage = self.pipeline.file("processed.jpg", name="ProcessedImage")
         self.pipeline.step(no_op, RawImage.all(), ProcessedImage)
 
-        eq_(len(self.pipeline.queue), iter_len(RawImage.all()))
+        eq_(len(self.pipeline.jobs), iter_len(RawImage.all()))
 
     def test_grouped_io_1(self):
         RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
         ProcessedImage = self.pipeline.file("{camera}_processed.jpg", name="ProcessedImage")
         self.pipeline.step(no_op, RawImage.group_by("camera"), ProcessedImage)
 
-        eq_(len(self.pipeline.queue), iter_len(RawImage.group_by("camera")))
+        eq_(len(self.pipeline.jobs), iter_len(RawImage.group_by("camera")))
 
     def test_grouped_io_2(self):
         RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
         ProcessedImage = self.pipeline.file("{scene}_processed.jpg", name="ProcessedImage")
         self.pipeline.step(no_op, RawImage.group_by("scene"), ProcessedImage)
 
-        eq_(len(self.pipeline.queue), iter_len(RawImage.group_by("scene")))
+        eq_(len(self.pipeline.jobs), iter_len(RawImage.group_by("scene")))
 
 
 class FullPipelineTest(TestCase):
 
     def setUp(self):
         self.pipeline = Pipeline()
-        path = os.path.join(fixtures_abspath, "test1")
-        self.pipeline.chdir(path)
+        fixture_path = os.path.join(fixtures_abspath, "test1")
+        self.test_path = os.path.join(fixtures_abspath, "test1_tmp")
+        shutil.copytree(fixture_path, self.test_path)
+        self.pipeline.chdir(self.test_path)
+
+    def tearDown(self):
+        shutil.rmtree(self.test_path)
 
     def test_single_step(self):
 
         def processor(input, output, params):
-            print input, output, params
+            open(output.filename, 'w').close()
 
         def summarizer(input, output, params):
-            print input, output, params
+            open(output.filename, 'w').close()
 
         RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
         ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg", name="ProcessedImage")
         Summary = self.pipeline.file("summary.txt", name="Summary")
         self.pipeline.step(processor, RawImage, ProcessedImage)
         self.pipeline.step(summarizer, ProcessedImage.all(), Summary)
-        self.pipeline.run()
+        success = self.pipeline.run()
+        self.assertTrue(success)
 
         for camera in ["N1", "NP1", "NP2"]:
             for scene in ["0", "1"]:
                 filename = "{0}_{1}_processed.jpg".format(camera,scene)
-                self.assertTrue(os.path.exists(filename))
-        self.assertTrue(os.path.exists("summary.txt"))
+                full_path = os.path.join(self.test_path, filename)
+                self.assertTrue(os.path.exists(full_path))
+        full_path = os.path.join(self.test_path, "summary.txt")
+        self.assertTrue(os.path.exists(full_path))
+
+class DependencyGraphTest(TestCase):
+
+    def test_topological_sort(self):
+        graph = DependencyGraph()
+        graph.add(0,2)
+        graph.add(1,2)
+        graph.add(1,3)
+        graph.add(2,4)
+        graph.add(3,4)
+        graph.add(4,5)
+        graph.add(4,6)
+
+        topological = graph.topological_sort()
+
+        # 3 doesn't depend on 0
+        for i in [2,4,5,6]:
+            self.assertLess(topological.index(0), topological.index(i))
+
+        for i in range(2,7):
+            self.assertLess(topological.index(1), topological.index(i))
+
+        for i in range(4,7):
+            self.assertLess(topological.index(2), topological.index(i))
+            self.assertLess(topological.index(3), topological.index(i))
+
+        for i in range(5,7):
+            self.assertLess(topological.index(4), topological.index(i))
+
+    def test_roots(self):
+        graph = DependencyGraph()
+        graph.add(0,2)
+        graph.add(1,2)
+        graph.add(1,3)
+        graph.add(2,4)
+        graph.add(3,4)
+        graph.add(4,5)
+        graph.add(4,6)
+
+        roots = graph.roots()
+
+        self.assertListEqual(roots, [0,1])
+

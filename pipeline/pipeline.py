@@ -2,6 +2,9 @@ import os
 import itertools
 import multiprocessing as mp
 
+#import dill as _pickle
+#dill.dill._trace(False)
+import cloud.serialization.cloudpickle as _pickle
 import networkx as nx
 import lucidity
 
@@ -207,12 +210,22 @@ class Job(object):
 
     counter = itertools.count(0)
 
-    def __init__(self, task, inputs, outputs):
+    def __init__(self, task, inputs, outputs, params):
+
         self.task = task
         self.inputs = inputs
         self.outputs = outputs
+        self.params = params
+
         self.task_name = self.determine_task_name()
         self.number = self.counter.next()
+        self.done = False
+        self.failed = False
+
+        if hasattr(task, "num_cores"):
+            self.num_cores = task.num_cores
+        else:
+            self.num_cores = 1
 
     def __repr__(self):
         return "Job: {0}".format(self.id)
@@ -233,10 +246,118 @@ class Stage(object):
     def append(self, job_id):
         self.job_ids.append(job_id)
 
+def _work(job_queue, result_queue):
+    while True:
+        job = None
+        try:
+            job = _pickle.loads(job_queue.get())
+            result = job.task(job.inputs, job.outputs, job.params)
+            result_queue.put((job.id, _pickle.dumps(result)))
+        except KeyboardInterrupt:
+            pass
+        except Exception as e:
+            result_id = job.id if job is not None else None
+            result_queue.put((result_id, _pickle.dumps(e)))
+
+class Scheduler(object):
+
+    def __init__(self, graph, num_cores_to_use):
+
+        self.graph = graph
+        self.num_cores_to_use = num_cores_to_use
+        self.num_cores_in_use = 0
+
+        self.candidate_jobs = {}
+        self.pending_jobs = {}
+        self.completed_jobs = {}
+        self.results = {}
+
+        for job in self.graph.roots():
+            self.candidate_jobs[job.id] = job
+
+        self.setup_mp()
+
+    @property
+    def num_cores_available(self):
+        return self.num_cores_to_use - self.num_cores_in_use
+
+    def setup_mp(self):
+        self.job_queue = mp.Queue()
+        self.result_queue = mp.Queue()
+        self.workers = []
+        for i in range(self.num_cores_to_use):
+            worker = mp.Process(target=_work,
+                                args=(self.job_queue, self.result_queue))
+            worker.start()
+            self.workers.append(worker)
+
+    def schedulable(self, job):
+        # If a job requests more cores than exist on the system, we should
+        # schedule it anyways.
+        all_cores_free = (self.num_cores_available == self.num_cores_to_use)
+        return all_cores_free or job.num_cores <= self.num_cores_available
+
+    def greedy_schedule(self):
+        for job_id, job in self.candidate_jobs.items():
+            if self.num_cores_available <= 0:
+                break
+            if self.schedulable(job):
+                self.dispatch(job)
+
+    def dispatch(self, job):
+        try:
+            self.job_queue.put(_pickle.dumps(job))
+        except:
+            job.failed = True
+            return
+        del self.candidate_jobs[job.id]
+        self.pending_jobs[job.id] = job
+        self.num_cores_in_use += job.num_cores
+
+    def process_completed_jobs(self):
+
+        (job_id, result) = self.result_queue.get()
+        result = _pickle.loads(result)
+        self.results[job_id] = result
+
+        job = self.pending_jobs[job_id]
+        if isinstance(result, Exception):
+            job.failed = True
+        job.done = True
+
+        del self.pending_jobs[job_id]
+        self.completed_jobs[job_id] = job
+        self.num_cores_in_use -= job.num_cores
+
+        for child_job in self.graph.children(job):
+            parents_done = all([j.done for j in self.graph.parents(child_job)])
+
+            if parents_done:
+                self.candidate_jobs[child_job.id] = child_job
+
+    def run(self):
+        #if len(self.candidate_jobs) == 0:
+        #    raise Exception("no jobs to run..")
+        while(len(self.completed_jobs) < len(self.graph)):
+            self.greedy_schedule()
+            self.process_completed_jobs()
+
+        self.cleanup()
+
+        jobs = self.completed_jobs.values()
+        return all([not job.failed for job in jobs]), self.results
+
+    def cleanup(self):
+        for worker in self.workers:
+            worker.terminate()
+
 class DependencyGraph(object):
 
     def __init__(self):
         self.graph = nx.DiGraph()
+
+    def __len__(self):
+        return self.graph.number_of_nodes()
 
     def add(self, parents, children):
 
@@ -252,24 +373,28 @@ class DependencyGraph(object):
                 self.graph.add_node(child)
                 self.graph.add_edge(parent, child)
 
+    def parents(self, node):
+        return self.graph.predecessors(node)
+
     def children(self, node):
         return self.graph.successors(node)
 
     def topological_sort(self):
         return nx.topological_sort(self.graph)
 
+    def roots(self):
+        return [n for n,d in self.graph.in_degree().items() if d==0]
+
 class Pipeline(object):
 
-    def __init__(self, num_processes=1):
+    def __init__(self):
         self.current_dir = None
         self.stages = []
         self.jobs = {}
-        self.num_processes = num_processes
-        self.cores_in_use = 0
-        self.queue = []
+        self.globals = {}
 
         # Contains both resources and jobs
-        self.joint_dependency_graph = DependencyGraph()
+        self.resource_job_graph = DependencyGraph()
 
         #self.dispatcher = MultiprocessingDispatcher()
 
@@ -281,6 +406,7 @@ class Pipeline(object):
         if name is None:
             name = template
         resource = FileResourceMeta(name, (FileResource,), dct)
+        globals()[name] = resource
         return resource
 
     def chdir(self, new_dir):
@@ -299,33 +425,59 @@ class Pipeline(object):
     def determine_stage_name(self, task):
         return "stagename"
 
-    def step(self, task, inputs, output_resource):
+    def step(self, task, inputs, output_resource, **kwargs):
         #stage_name = self.get_stage_name(task)
         #stage = Stage(stage_name)
+        params = self.globals.copy()
+        params.update(kwargs)
         for i, input in enumerate(inputs):
             output = output_resource.build(input)
-            job = Job(task, input, output)
-            self.joint_dependency_graph.add(input, job)
-            self.joint_dependency_graph.add(job, output)
+            job = Job(task, input, output, params)
+            self.resource_job_graph.add(input, job)
+            self.resource_job_graph.add(job, output)
             self.jobs[job.id] = job
-            self.queue.append(job)
         #self.stages.append(stage)
 
     def compute_job_graph(self):
-        topological_joint = self.joint_dependency_graph.topological_sort()
+        topological_joint = self.resource_job_graph.topological_sort()
         topological_jobs = itertools.ifilter(lambda x: isinstance(x, Job),
                                              topological_joint)
         graph = DependencyGraph()
         for job in topological_jobs:
-            for resource in self.joint_dependency_graph.children(job):
-                child_jobs = self.joint_dependency_graph.children(resource)
+            for resource in self.resource_job_graph.children(job):
+                child_jobs = self.resource_job_graph.children(resource)
                 for child_job in child_jobs:
                     graph.add(job, child_job)
         self.job_graph = graph
 
-
-    def run(self):
+    def run(self, num_cores_to_use=None):
+        if num_cores_to_use is None:
+            num_cores_to_use = mp.cpu_count()*2
         self.compute_job_graph()
+        scheduler = Scheduler(self.job_graph, num_cores_to_use)
+        success, results = scheduler.run()
+        if not success:
+            failed_jobs = filter(lambda x: x.failed, self.jobs.values())
+            print "-"*80
+            for job in failed_jobs:
+                print "Job failed: {0}".format(job.id)
+                print self.job_spec(job)
+                print "Exception: "
+                print results[job.id]
+                print "-"*80
+        return success
+
+    def job_spec(self, job):
+        inputs = self.resource_job_graph.parents(job)
+        outputs = self.resource_job_graph.children(job)
+        spec = "Inputs:\n"
+        for input in inputs:
+            spec += "\t{0}\n".format(input.filename)
+        spec += "Outputs:\n"
+        for output in outputs:
+            spec += "\t{0}\n".format(output.filename)
+        return spec
+
 
     #    for stage in self.stages:
     #        self.dispatcher
