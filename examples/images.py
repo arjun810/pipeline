@@ -10,9 +10,9 @@ def processor(input, output, params):
 def summarizer(input, output, params):
     open(output.filename, 'w').close()
 
-RawImage = pipeline.file("{camera}_{scene}.jpg", name="RawImage")
-ProcessedImage = pipeline.file("{camera}_{scene}_processed.jpg", name="ProcessedImage")
-Summary = pipeline.file("summary.txt", name="Summary")
+RawImage = pipeline.file("{camera}_{scene}.jpg")
+ProcessedImage = pipeline.file("{camera}_{scene}_processed.jpg")
+Summary = pipeline.file("summary.txt")
 
 pipeline.step(processor, RawImage, ProcessedImage)
 pipeline.step(summarizer, ProcessedImage.all(), Summary)

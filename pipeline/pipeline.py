@@ -1,9 +1,10 @@
 import os
 import itertools
 import multiprocessing as mp
+import Queue
 
 #import dill as _pickle
-#dill.dill._trace(False)
+#_pickle.dill._trace(False)
 import cloud.serialization.cloudpickle as _pickle
 import networkx as nx
 import lucidity
@@ -298,16 +299,28 @@ class Scheduler(object):
     def dispatch(self, job):
         try:
             self.job_queue.put(_pickle.dumps(job))
-        except:
+            self.pending_jobs[job.id] = job
+        except Exception as e:
+            self.results[job.id] = e
             job.failed = True
-            return
+            self.completed_jobs[job.id] = job
+            self.fail_downstream(job)
+
         del self.candidate_jobs[job.id]
-        self.pending_jobs[job.id] = job
         self.num_cores_in_use += job.num_cores
+
+    def fail_downstream(self, job):
+        for descendant in self.graph.descendants(job):
+            self.results[descendant.id] = Exception("Failed due to upstream job {0}".format(job.id))
+            descendant.failed = True
+            self.completed_jobs[descendant.id] = descendant
 
     def process_completed_jobs(self):
 
-        (job_id, result) = self.result_queue.get()
+        try:
+            (job_id, result) = self.result_queue.get(timeout=1)
+        except Queue.Empty:
+            return
         result = _pickle.loads(result)
         self.results[job_id] = result
 
@@ -370,6 +383,12 @@ class DependencyGraph(object):
     def children(self, node):
         return self.graph.successors(node)
 
+    def ancestors(self, node):
+        return nx.ancestors(self.graph, node)
+
+    def descendants(self, node):
+        return nx.descendants(self.graph, node)
+
     def topological_sort(self):
         return nx.topological_sort(self.graph)
 
@@ -387,14 +406,23 @@ class Pipeline(object):
         self.resource_job_graph = DependencyGraph()
 
     def file(self, template, name=None):
+
         if self.current_dir is None:
             raise Exception("Pipeline: must chdir before creating file resource.")
+
+        full_path = os.path.join(self.current_dir, template)
+
+        if full_path in globals():
+            return globals()[full_path]
+
         pattern = FilePattern(self.current_dir, template)
         dct = {"pattern": pattern}
-        if name is None:
-            name = template
-        resource = FileResourceMeta(name, (FileResource,), dct)
-        globals()[name] = resource
+        if name is not None:
+            dct["name"] = name
+        resource = FileResourceMeta(full_path, (FileResource,), dct)
+
+        globals()[full_path] = resource
+
         return resource
 
     def chdir(self, new_dir):

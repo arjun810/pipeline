@@ -122,12 +122,12 @@ class PipelineResourceTest(TestCase):
     @raises(Exception)
     def test_resource_without_chdir(self):
         pipeline = Pipeline()
-        RawImage = pipeline.file("{camera}_{scene}.jpg", name="RawImage")
+        RawImage = pipeline.file("{camera}_{scene}.jpg")
 
     def test_resource_id(self):
         path = os.path.join(fixtures_abspath, "test1")
         self.pipeline.chdir(path)
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
 
         image1 = RawImage.where(camera="N1", scene=0).first()
         image2 = RawImage.where(camera="N1", scene=1).first()
@@ -143,7 +143,7 @@ class PipelineResourceTest(TestCase):
     def test_input_resource(self):
         path = os.path.join(fixtures_abspath, "test1")
         self.pipeline.chdir(path)
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
 
         iter_len_eq(RawImage, 6)
 
@@ -176,20 +176,20 @@ class PipelineResourceTest(TestCase):
     def test_invalid_condition(self):
         path = os.path.join(fixtures_abspath, "test1")
         self.pipeline.chdir(path)
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
         RawImage.where(badkey="N1")
 
     def test_nonexistent_resource_query(self):
         path = os.path.join(fixtures_abspath, "test1")
         self.pipeline.chdir(path)
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
         iter_len_eq(RawImage.where(scene=5), 0)
 
     @raises(ValueError)
     def test_nonexistent_resource_query_first(self):
         path = os.path.join(fixtures_abspath, "test1")
         self.pipeline.chdir(path)
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
         RawImage.where(scene=5).first()
 
     @parameterized.expand([
@@ -199,8 +199,8 @@ class PipelineResourceTest(TestCase):
     def test_build_resource_same_vars(self, scene_number):
         path = os.path.join(fixtures_abspath, "test1")
         self.pipeline.chdir(path)
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
-        ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg", name="ProcessedImage")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg")
 
         raw_image = RawImage.where(scene=scene_number).first()
         processed_image = ProcessedImage.build(raw_image)
@@ -215,8 +215,8 @@ class PipelineResourceTest(TestCase):
     def test_build_resource_subset_vars(self):
         path = os.path.join(fixtures_abspath, "test1")
         self.pipeline.chdir(path)
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
-        ProcessedImage = self.pipeline.file("{camera}_processed.jpg", name="ProcessedImage")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        ProcessedImage = self.pipeline.file("{camera}_processed.jpg")
 
         raw_image = RawImage.where(scene=0).first()
         processed_image = ProcessedImage.build(raw_image)
@@ -225,8 +225,8 @@ class PipelineResourceTest(TestCase):
     def test_build_resource_extra_vars(self):
         path = os.path.join(fixtures_abspath, "test1")
         self.pipeline.chdir(path)
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
-        ProcessedImage = self.pipeline.file("{camera}_{scene}_{extra}.jpg", name="ProcessedImage")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        ProcessedImage = self.pipeline.file("{camera}_{scene}_{extra}.jpg")
 
         raw_image = RawImage.where(scene=0).first()
         processed_image = ProcessedImage.build(raw_image)
@@ -234,8 +234,8 @@ class PipelineResourceTest(TestCase):
     def test_build_resource_each(self):
         path = os.path.join(fixtures_abspath, "test1")
         self.pipeline.chdir(path)
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
-        ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg", name="ProcessedImage")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg")
 
         raw_images = RawImage.all()
 
@@ -252,8 +252,8 @@ class PipelineResourceTest(TestCase):
     def test_build_resource_all(self):
         path = os.path.join(fixtures_abspath, "test1")
         self.pipeline.chdir(path)
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
-        Summary = self.pipeline.file("summary.txt", name="Summary")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        Summary = self.pipeline.file("summary.txt")
 
         summary = Summary.build(next(RawImage.all()))
         expected = os.path.join(path, 'summary.txt')
@@ -262,8 +262,8 @@ class PipelineResourceTest(TestCase):
     def test_build_resource_all_conditions_1(self):
         path = os.path.join(fixtures_abspath, "test1")
         self.pipeline.chdir(path)
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
-        Summary = self.pipeline.file("summary.txt", name="Summary")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        Summary = self.pipeline.file("summary.txt")
 
         summary = Summary.build(next(RawImage.where(camera="N1").all()))
         expected = os.path.join(path, 'summary.txt')
@@ -276,8 +276,8 @@ class PipelineResourceTest(TestCase):
     def test_build_resource_all_conditions_2(self, scene_number):
         path = os.path.join(fixtures_abspath, "test1")
         self.pipeline.chdir(path)
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
-        Summary = self.pipeline.file("{scene}_summary.txt", name="Summary")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        Summary = self.pipeline.file("{scene}_summary.txt")
 
         raw_images = next(RawImage.where(scene=scene_number).all())
         summary = Summary.build(raw_images)
@@ -292,8 +292,8 @@ class PipelineResourceTest(TestCase):
     def test_build_resource_all_conditions_check_subset_1(self):
         path = os.path.join(fixtures_abspath, "test1")
         self.pipeline.chdir(path)
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
-        Summary = self.pipeline.file("{bad}_summary.txt", name="Summary")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        Summary = self.pipeline.file("{bad}_summary.txt")
         raw_images = next(RawImage.where(camera="N1").all())
         summary = Summary.build(raw_images)
 
@@ -304,8 +304,8 @@ class PipelineResourceTest(TestCase):
         """
         path = os.path.join(fixtures_abspath, "test1")
         self.pipeline.chdir(path)
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
-        Summary = self.pipeline.file("{bad}_summary.txt", name="Summary")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        Summary = self.pipeline.file("{bad}_summary.txt")
 
         raw_images = next(RawImage.where(camera="N1").all())
         raw_images[0].bad = 4
@@ -319,8 +319,8 @@ class PipelineResourceTest(TestCase):
         """
         path = os.path.join(fixtures_abspath, "test1")
         self.pipeline.chdir(path)
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
-        Summary = self.pipeline.file("{camera}_summary.txt", name="Summary")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        Summary = self.pipeline.file("{camera}_summary.txt")
 
         raw_images = next(RawImage.all())
         summary = Summary.build(raw_images)
@@ -328,8 +328,8 @@ class PipelineResourceTest(TestCase):
     def test_build_resource_grouped(self):
         path = os.path.join(fixtures_abspath, "test1")
         self.pipeline.chdir(path)
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
-        Summary = self.pipeline.file("{camera}_summary.txt", name="Summary")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        Summary = self.pipeline.file("{camera}_summary.txt")
 
         for group in RawImage.group_by("camera"):
             summary = Summary.build(group)
@@ -343,8 +343,8 @@ class PipelineResourceTest(TestCase):
     def test_build_resource_grouped_is_subset(self):
         path = os.path.join(fixtures_abspath, "test1")
         self.pipeline.chdir(path)
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
-        Summary = self.pipeline.file("{camera}_{bad}_summary.txt", name="Summary")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        Summary = self.pipeline.file("{camera}_{bad}_summary.txt")
 
         group = RawImage.group_by("camera").first()
         summary = Summary.build(group)
@@ -357,36 +357,36 @@ class PipelineStepTest(TestCase):
         self.pipeline.chdir(path)
 
     def test_each_io_1(self):
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
-        ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg", name="ProcessedImage")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg")
         self.pipeline.step(no_op, RawImage.each(), ProcessedImage)
 
         eq_(len(self.pipeline.jobs), iter_len(RawImage))
 
     def test_each_io_2(self):
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
-        ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg", name="ProcessedImage")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg")
         self.pipeline.step(no_op, RawImage, ProcessedImage)
 
         eq_(len(self.pipeline.jobs), iter_len(RawImage))
 
     def test_all_io(self):
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
-        ProcessedImage = self.pipeline.file("processed.jpg", name="ProcessedImage")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        ProcessedImage = self.pipeline.file("processed.jpg")
         self.pipeline.step(no_op, RawImage.all(), ProcessedImage)
 
         eq_(len(self.pipeline.jobs), iter_len(RawImage.all()))
 
     def test_grouped_io_1(self):
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
-        ProcessedImage = self.pipeline.file("{camera}_processed.jpg", name="ProcessedImage")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        ProcessedImage = self.pipeline.file("{camera}_processed.jpg")
         self.pipeline.step(no_op, RawImage.group_by("camera"), ProcessedImage)
 
         eq_(len(self.pipeline.jobs), iter_len(RawImage.group_by("camera")))
 
     def test_grouped_io_2(self):
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
-        ProcessedImage = self.pipeline.file("{scene}_processed.jpg", name="ProcessedImage")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        ProcessedImage = self.pipeline.file("{scene}_processed.jpg")
         self.pipeline.step(no_op, RawImage.group_by("scene"), ProcessedImage)
 
         eq_(len(self.pipeline.jobs), iter_len(RawImage.group_by("scene")))
@@ -398,6 +398,8 @@ class FullPipelineTest(TestCase):
         self.pipeline = Pipeline()
         fixture_path = os.path.join(fixtures_abspath, "test1")
         self.test_path = os.path.join(fixtures_abspath, "test1_tmp")
+        if os.path.exists(self.test_path):
+            shutil.rmtree(self.test_path)
         shutil.copytree(fixture_path, self.test_path)
         self.pipeline.chdir(self.test_path)
 
@@ -412,9 +414,9 @@ class FullPipelineTest(TestCase):
         def summarizer(input, output, params):
             open(output.filename, 'w').close()
 
-        RawImage = self.pipeline.file("{camera}_{scene}.jpg", name="RawImage")
-        ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg", name="ProcessedImage")
-        Summary = self.pipeline.file("summary.txt", name="Summary")
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg")
+        Summary = self.pipeline.file("summary.txt")
         self.pipeline.step(processor, RawImage, ProcessedImage)
         self.pipeline.step(summarizer, ProcessedImage.all(), Summary)
         success = self.pipeline.run()
