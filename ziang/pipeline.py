@@ -115,11 +115,11 @@ class FileResourceMeta(type):
     def discover(cls):
         cls.variables = cls.pattern.variables
         cls.pattern.discover()
-        cls.instances = []
+        cls.instances = set()
         for pattern_instance in cls.pattern.instances:
             instance = cls(**pattern_instance)
             instance.exists = True
-            cls.instances.append(instance)
+            cls.instances.add(instance)
 
     def __iter__(cls):
         return ResourceIterator(cls).each()
@@ -129,6 +129,9 @@ class FileResourceMeta(type):
 
     def all(cls):
         return ResourceIterator(cls).all()
+
+    def first(cls):
+        return ResourceIterator(cls).first()
 
     def where(cls, **kwargs):
         return ResourceIterator(cls).where(kwargs)
@@ -183,7 +186,10 @@ class FileResourceMeta(type):
 
         output_attrs["filename"] = cls.pattern.format(output_attrs)
         new_instance = cls(**output_attrs)
-        cls.instances.append(new_instance)
+
+        if new_instance not in cls.instances:
+            cls.instances.add(new_instance)
+
         return new_instance
 
 
@@ -198,6 +204,23 @@ class FileResource(Resource):
             if k not in allowed_fields:
                 raise ValueError("Valid values are {0}. Got {1}.".format(self.variables, k))
             setattr(self, k, str(v))
+
+    def __eq__(self, other):
+        for k in self.variables:
+            if getattr(self, k) != getattr(other, k):
+                return False
+        return True
+
+    def __repr__(self):
+        repr = self.__class__.__name__
+        kv = ["{0}={1}".format(k , getattr(self, k)) for k in self.variables]
+        return "{0}: ({1})".format(self.__class__.__name__, ", ".join(kv))
+
+    def __hash__(self):
+        return hash(repr(self))
+
+    def __str__(self):
+        return repr(self)
 
     @property
     def id(self):

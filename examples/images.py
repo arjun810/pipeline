@@ -1,6 +1,6 @@
 import sys
 sys.path.append("../")
-from pipeline import Pipeline
+from ziang import Pipeline
 pipeline = Pipeline()
 pipeline.chdir("images")
 
@@ -10,7 +10,7 @@ def processor(input, output, params):
 def summarizer(input, output, params):
     open(output.filename, 'w').close()
 
-RawImage = pipeline.file("{camera}_{scene}.jpg")
+RawImage = pipeline.file("{camera}_{scene:\d+}.jpg")
 ProcessedImage = pipeline.file("{camera}_{scene}_processed.jpg")
 Summary = pipeline.file("summary.txt")
 

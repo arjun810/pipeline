@@ -9,7 +9,7 @@ from nose.plugins.attrib import attr
 
 from nose_parameterized import parameterized
 
-from pipeline import Pipeline, FilePattern, DependencyGraph
+from ziang import Pipeline, FilePattern, DependencyGraph
 
 fixtures_abspath = os.path.join(os.path.dirname(__file__), "fixtures")
 
@@ -429,6 +429,35 @@ class FullPipelineTest(TestCase):
                 self.assertTrue(os.path.exists(full_path))
         full_path = os.path.join(self.test_path, "summary.txt")
         self.assertTrue(os.path.exists(full_path))
+
+    def test_resources_not_duplicated(self):
+        """
+        Ensure that resources that already exist aren't duplicated when a
+        Resource class is used as an output argument.
+        """
+
+        def processor(input, output, params):
+            open(output.filename, 'w').close()
+
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+
+        # Create the processed images
+        for raw_image in RawImage:
+            base = "{camera}_{scene}_processed.jpg".format(camera=raw_image.camera,
+                                                           scene=raw_image.scene)
+            filename = os.path.join(self.test_path, base)
+            open(filename, 'w').close()
+
+        # ProcessedImage will discover the already created images
+        ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg")
+
+        iter_len_eq(ProcessedImage, 6)
+
+        # pipeline.step will try to build processed images for each raw image,
+        # but it shouldn't change the number of processed images.
+        self.pipeline.step(processor, RawImage, ProcessedImage)
+
+        iter_len_eq(ProcessedImage, 6)
 
 class DependencyGraphTest(TestCase):
 
