@@ -50,3 +50,7 @@ docs/_build/
 
 # Ignore nosy setup.cfg to allow multi-platform setup.cfg
 setup.cfg
+
+# Example-specific
+examples/images/data/*processed.jpg
+examples/images/data/summary.txt

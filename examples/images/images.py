@@ -1,8 +1,8 @@
 import sys
-sys.path.append("../")
+sys.path.append("../../")
 from ziang import Pipeline
 pipeline = Pipeline()
-pipeline.chdir("images")
+pipeline.chdir("data")
 
 def processor(input, output, params):
     open(output.filename, 'w').close()
