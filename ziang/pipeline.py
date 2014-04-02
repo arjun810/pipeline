@@ -1,4 +1,5 @@
 import os
+import traceback
 import itertools
 import multiprocessing as mp
 import Queue
@@ -11,6 +12,23 @@ import lucidity
 
 class Resource(object):
     pass
+
+class Task(object):
+
+    def __init__(self, input, output, params):
+        self.input = input
+        self.output = output
+        self.params = params
+        self.validate()
+
+    def validate(self):
+        pass
+
+    def _run(self):
+        self.run()
+
+    def run(self):
+        raise NotImplementedError("Task.run is abstract")
 
 class FilePattern(object):
 
@@ -234,12 +252,9 @@ class Job(object):
 
     counter = itertools.count(0)
 
-    def __init__(self, task, inputs, outputs, params):
+    def __init__(self, task):
 
         self.task = task
-        self.inputs = inputs
-        self.outputs = outputs
-        self.params = params
 
         self.task_name = self.determine_task_name()
         self.number = self.counter.next()
@@ -261,17 +276,23 @@ class Job(object):
     def id(self):
         return "{0}_{1}".format(self.task_name, self.number)
 
+    def run(self):
+        return self.task._run()
+
 def _work(job_queue, result_queue):
     while True:
         job = None
         try:
             job = _pickle.loads(job_queue.get())
-            result = job.task(job.inputs, job.outputs, job.params)
+            # need something to create this task and mape arguments properly
+            result = job.run()
             result_queue.put((job.id, _pickle.dumps(result)))
         except KeyboardInterrupt:
             pass
         except Exception as e:
             result_id = job.id if job is not None else None
+            traceback.print_exc()
+            e.traceback = traceback.format_exc()
             result_queue.put((result_id, _pickle.dumps(e)))
 
 class Scheduler(object):
@@ -461,12 +482,30 @@ class Pipeline(object):
 
         self.current_dir = new_dir
 
-    def step(self, task, inputs, output_resource, **kwargs):
+    def build_task(self, task_type, input, output, params):
+        # Can put logic here to build a task based on the class of
+        # task_type
+        input_dict = {}
+        output_dict = {}
+        if len(task_type.input) == 1:
+            input_dict[task_type.input.keys()[0]] = input
+        else:
+            input_dict = input
+        if len(task_type.output) == 1:
+            output_dict[task_type.output.keys()[0]] = output
+        else:
+            input_dict = input
+
+        task = task_type(input_dict, output_dict, params)
+        return task
+
+    def step(self, task_type, inputs, output_resource, **kwargs):
         params = self.globals.copy()
         params.update(kwargs)
         for i, input in enumerate(inputs):
             output = output_resource.build(input)
-            job = Job(task, input, output, params)
+            task = self.build_task(task_type, input, output, params)
+            job = Job(task)
             self.resource_job_graph.add(input, job)
             self.resource_job_graph.add(job, output)
             self.jobs[job.id] = job
@@ -497,6 +536,7 @@ class Pipeline(object):
                 print self.job_spec(job)
                 print "Exception: "
                 print results[job.id]
+                print results[job.id].traceback
                 print "-"*80
         return success
 

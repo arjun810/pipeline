@@ -1,19 +1,31 @@
 import sys
 sys.path.append("../../")
-from ziang import Pipeline
+from ziang import Pipeline, Task
 pipeline = Pipeline()
 pipeline.chdir("data")
 
-def processor(input, output, params):
-    open(output.filename, 'w').close()
+class ImageProcessor(Task):
 
-def summarizer(input, output, params):
-    open(output.filename, 'w').close()
+    input = {'image': 'dummy'}
+    output = {'image': 'dummy'}
+
+    def run(self):
+        output_filename = self.output['image'].filename
+        open(output_filename, 'w').close()
+
+class ImageSummarizer(Task):
+
+    input = {'images': ['dummy']}
+    output = {'summary': 'dummy'}
+
+    def run(self):
+        output_filename = self.output['summary'].filename
+        open(output_filename, 'w').close()
 
 RawImage = pipeline.file("{camera}_{scene:\d+}.jpg")
 ProcessedImage = pipeline.file("{camera}_{scene}_processed.jpg")
 Summary = pipeline.file("summary.txt")
 
-pipeline.step(processor, RawImage, ProcessedImage)
-pipeline.step(summarizer, ProcessedImage.all(), Summary)
+pipeline.step(ImageProcessor, RawImage, ProcessedImage)
+pipeline.step(ImageSummarizer, ProcessedImage.all(), Summary)
 success = pipeline.run()

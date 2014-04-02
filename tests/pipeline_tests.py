@@ -9,12 +9,17 @@ from nose.plugins.attrib import attr
 
 from nose_parameterized import parameterized
 
-from ziang import Pipeline, FilePattern, DependencyGraph
+from ziang import Pipeline, FilePattern, DependencyGraph, Task
 
 fixtures_abspath = os.path.join(os.path.dirname(__file__), "fixtures")
 
-def no_op(input, output, params):
-    pass
+class NoOp(Task):
+
+    input = {}
+    output = {}
+
+    def run(self):
+        pass
 
 def iter_len(iterator):
     return len(list(iterator))
@@ -359,40 +364,57 @@ class PipelineStepTest(TestCase):
     def test_each_io_1(self):
         RawImage = self.pipeline.file("{camera}_{scene}.jpg")
         ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg")
-        self.pipeline.step(no_op, RawImage.each(), ProcessedImage)
+        self.pipeline.step(NoOp, RawImage.each(), ProcessedImage)
 
         eq_(len(self.pipeline.jobs), iter_len(RawImage))
 
     def test_each_io_2(self):
         RawImage = self.pipeline.file("{camera}_{scene}.jpg")
         ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg")
-        self.pipeline.step(no_op, RawImage, ProcessedImage)
+        self.pipeline.step(NoOp, RawImage, ProcessedImage)
 
         eq_(len(self.pipeline.jobs), iter_len(RawImage))
 
     def test_all_io(self):
         RawImage = self.pipeline.file("{camera}_{scene}.jpg")
         ProcessedImage = self.pipeline.file("processed.jpg")
-        self.pipeline.step(no_op, RawImage.all(), ProcessedImage)
+        self.pipeline.step(NoOp, RawImage.all(), ProcessedImage)
 
         eq_(len(self.pipeline.jobs), iter_len(RawImage.all()))
 
     def test_grouped_io_1(self):
         RawImage = self.pipeline.file("{camera}_{scene}.jpg")
         ProcessedImage = self.pipeline.file("{camera}_processed.jpg")
-        self.pipeline.step(no_op, RawImage.group_by("camera"), ProcessedImage)
+        self.pipeline.step(NoOp, RawImage.group_by("camera"), ProcessedImage)
 
         eq_(len(self.pipeline.jobs), iter_len(RawImage.group_by("camera")))
 
     def test_grouped_io_2(self):
         RawImage = self.pipeline.file("{camera}_{scene}.jpg")
         ProcessedImage = self.pipeline.file("{scene}_processed.jpg")
-        self.pipeline.step(no_op, RawImage.group_by("scene"), ProcessedImage)
+        self.pipeline.step(NoOp, RawImage.group_by("scene"), ProcessedImage)
 
         eq_(len(self.pipeline.jobs), iter_len(RawImage.group_by("scene")))
 
-
 class FullPipelineTest(TestCase):
+
+    class ImageProcessor(Task):
+
+        input = {'image': 'dummy'}
+        output = {'image': 'dummy'}
+
+        def run(self):
+            output_filename = self.output['image'].filename
+            open(output_filename, 'w').close()
+
+    class ImageSummarizer(Task):
+
+        input = {'images': ['dummy']}
+        output = {'summary': 'dummy'}
+
+        def run(self):
+            output_filename = self.output['summary'].filename
+            open(output_filename, 'w').close()
 
     def setUp(self):
         self.pipeline = Pipeline()
@@ -408,17 +430,11 @@ class FullPipelineTest(TestCase):
 
     def test_single_step(self):
 
-        def processor(input, output, params):
-            open(output.filename, 'w').close()
-
-        def summarizer(input, output, params):
-            open(output.filename, 'w').close()
-
         RawImage = self.pipeline.file("{camera}_{scene}.jpg")
         ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg")
         Summary = self.pipeline.file("summary.txt")
-        self.pipeline.step(processor, RawImage, ProcessedImage)
-        self.pipeline.step(summarizer, ProcessedImage.all(), Summary)
+        self.pipeline.step(self.ImageProcessor, RawImage, ProcessedImage)
+        self.pipeline.step(self.ImageSummarizer, ProcessedImage.all(), Summary)
         success = self.pipeline.run()
         self.assertTrue(success)
 
@@ -436,9 +452,6 @@ class FullPipelineTest(TestCase):
         Resource class is used as an output argument.
         """
 
-        def processor(input, output, params):
-            open(output.filename, 'w').close()
-
         RawImage = self.pipeline.file("{camera}_{scene}.jpg")
 
         # Create the processed images
@@ -455,7 +468,7 @@ class FullPipelineTest(TestCase):
 
         # pipeline.step will try to build processed images for each raw image,
         # but it shouldn't change the number of processed images.
-        self.pipeline.step(processor, RawImage, ProcessedImage)
+        self.pipeline.step(self.ImageProcessor, RawImage, ProcessedImage)
 
         iter_len_eq(ProcessedImage, 6)
 
