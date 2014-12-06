@@ -3,6 +3,7 @@ import traceback
 import itertools
 import multiprocessing as mp
 import Queue
+import inspect
 
 #import dill as _pickle
 #_pickle.dill._trace(False)
@@ -57,6 +58,10 @@ class Task(object):
         pass
 
     @classmethod
+    def _prepare(cls, cde_path, output_dir):
+        pass
+
+    @classmethod
     def _validate(cls, input, output):
         for input_name, input_type in cls.input.items():
             if input_name not in input:
@@ -94,6 +99,33 @@ class Task(object):
     def run(self):
         raise NotImplementedError("Task.run is abstract")
 
+class BinaryTask(Task):
+
+    executable = None
+    package_command = None
+    packaged = False
+
+    @classmethod
+    def _prepare(cls, cde_path, output_dir):
+        if cls.packaged:
+            return
+
+        cls._package(cde_path, output_dir)
+
+    @classmethod
+    def _package(cls, cde_path, output_dir):
+
+        cls.package_path = os.path.join(output_dir, cls.__name__)
+
+        if cls.package_command is None:
+            cmd = "{0} -o {1} {2} --help"
+            cmd = cmd.format(cde_path, cls.package_path, cls.executable)
+        else:
+            cmd = "{0} -o {1} {2}"
+            cmd = cmd.format(cde_path, cls.package_path, cls.package_command)
+
+        os.system(cmd)
+        cls.packaged = True
 
 class Job(object):
 
@@ -292,20 +324,21 @@ class Pipeline(object):
         self.root_dir = ""
         self.jobs = {}
         self.globals = {}
+        self.cde_path = "/home/arjun/CDE/cde"
+        self.cde_output_dir = "/tmp/pipeline_cde"
 
         # Contains both resources and jobs
         self.resource_job_graph = DependencyGraph()
 
     def set_root(self, new_dir):
+        filename = inspect.stack()[-1][1]
+        script_path = os.path.dirname(os.path.abspath(filename))
         if new_dir[0] == "/":
             pass
-        elif new_dir[0] == ".":
-            print "Warning, using relative path based on *where python is invoked*"
+        elif new_dir[0] == "~":
             new_dir = os.path.abspath(os.path.expanduser(new_dir))
         else:
-            print "Warning, using relative path based on *where python is invoked*"
-            new_dir = "./" + new_dir
-            new_dir = os.path.abspath(os.path.expanduser(new_dir))
+            new_dir = os.path.join(script_path, new_dir)
 
         self.root_dir = new_dir
 
@@ -337,6 +370,7 @@ class Pipeline(object):
         self.jobs[job.id] = job
 
     def build_task(self, task_type, input, output, params):
+        task_type._prepare(self.cde_path, self.cde_output_dir)
         task_type._validate(input, output)
         task = task_type(input, output, params)
         return task
