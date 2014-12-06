@@ -8,10 +8,42 @@ import Queue
 #_pickle.dill._trace(False)
 import cloud.serialization.cloudpickle as _pickle
 import networkx as nx
-import lucidity
 
-class Resource(object):
-    pass
+class FileGroup(dict):
+
+    def __key(self):
+        return tuple((k,self[k]) for k in sorted(self))
+
+    def __hash__(self):
+        return hash(self.__key())
+
+    def __eq__(self, other):
+        return self.__key() == other.__key()
+
+    def __init__(self, dict):
+        for k, v in dict.items():
+            if isinstance(v, list):
+                self[k] = FileList(v)
+            else:
+                self[k] = v
+
+    def flatten(self):
+        result = []
+        for k, v in self.items():
+            if isinstance(v, list):
+                for file in v:
+                    result.append(file)
+            else:
+                result.append(v)
+        return result
+
+class FileList(list):
+  def __key(self):
+    return tuple(sorted(self))
+  def __hash__(self):
+    return hash(self.__key())
+  def __eq__(self, other):
+    return self.__key() == other.__key()
 
 class Task(object):
 
@@ -24,229 +56,44 @@ class Task(object):
     def validate(self):
         pass
 
+    @classmethod
+    def _validate(cls, input, output):
+        for input_name, input_type in cls.input.items():
+            if input_name not in input:
+                err_msg = "Excepted {0} in input for task {1}"
+                err_msg = err_msg.format(input_name, cls.__name__)
+                raise ValueError(err_msg)
+            if input_type == "filename":
+                pass
+            elif input_type == "filename_list":
+                if not isinstance(input[input_name], list):
+                    err_msg = "Excepted {0} to be a list for task {1}"
+                    err_msg = err_msg.format(input_name, cls.__name__)
+                    raise ValueError(err_msg)
+            else:
+                raise ValueError("Input type {0} not supported".format(input_type))
+
+        for output_name, output_type in cls.output.items():
+            if output_name not in output:
+                err_msg = "Excepted {0} in output for task {1}"
+                err_msg = err_msg.format(output_name, cls.__name__)
+                raise ValueError(err_msg)
+            if output_type == "filename":
+                pass
+            elif output_type == "filename_list":
+                if not isinstance(output[output_name], list):
+                    err_msg = "Excepted {0} to be a list for task {1}"
+                    err_msg = err_msg.format(output_name, cls.__name__)
+                    raise ValueError(err_msg)
+            else:
+                raise ValueError("Output type {0} not supported".format(output_type))
+
     def _run(self):
         self.run()
 
     def run(self):
         raise NotImplementedError("Task.run is abstract")
 
-class FilePattern(object):
-
-    def __init__(self, root_dir, pattern):
-        if os.path.isabs(pattern):
-            raise Exception("Patterns should be relative to the root directory.")
-        self.root_dir = root_dir
-        self.pattern = os.path.join(root_dir, pattern)
-
-        # lucidity requires naming each Template. As a hack for now, we'll just
-        # name the template the pattern itself, to ensure there are no
-        # conflicts.
-        self.template = lucidity.Template(self.pattern, self.pattern)
-        self.variables = self.template.keys()
-
-    def pattern_root(self):
-
-        # Note: this will need to use splitdrive to work on Windows
-        components = self.pattern.split('/')
-        pattern_root = []
-        for component in components:
-            if "{" in component:
-                break
-            pattern_root.append(component)
-
-        return "/".join(pattern_root)
-
-    def discover(self):
-        root = self.pattern_root()
-        candidates = [os.path.join(dp, f) for dp, dn, fn in os.walk(root) for f in fn]
-        self.filenames = []
-        self.instances = []
-
-        for filename in candidates:
-            try:
-                instance = self.template.parse(filename)
-                instance['filename'] = filename
-                self.filenames.append(filename)
-                self.instances.append(instance)
-            except lucidity.ParseError:
-                pass
-
-    def format(self, data):
-        return self.template.format(data)
-
-class ResourceIterator(object):
-
-    def __init__(self, source):
-        self.source = source
-        self.conditions = {}
-        self.values = self.source.instances
-
-    def __iter__(self):
-        return self.each()
-
-    def each(self):
-        for v in self.values:
-            if self.accept(v):
-                yield v
-
-    def all(self):
-        for v in [list(self.each())]:
-            yield v
-
-    def first(self):
-        v = next(self.each(), None)
-        if v is None:
-            raise ValueError("No values found matching conditions {0}.".format(self.conditions))
-        return v
-
-    def group_by(self, key):
-        # TODO as stated elsewhere, values should probably be something other
-        # than dicts, so that this doesn't need to be such a hack.
-        keyfunc = lambda x: getattr(x,key)
-        values = sorted(self.values, key=keyfunc)
-        grouped = itertools.groupby(values, key=keyfunc)
-        self.values = [list(g[1]) for g in grouped]
-        return self
-
-    def where(self, conditions):
-        valid_keys = self.source.valid_keys()
-        for k, v in conditions.items():
-            if k not in valid_keys:
-                message = "Invalid key: {0}. ({1})".format(k, valid_keys)
-                raise ValueError(message)
-            self.conditions[k] = str(v)
-        return self
-
-    def accept(self, item):
-        for k, v in self.conditions.items():
-            if getattr(item, k) != v:
-                return False
-        return True
-
-class FileResourceMeta(type):
-
-    def __init__(cls, name, bases, dct):
-        super(FileResourceMeta, cls).__init__(name, bases, dct)
-        if cls.pattern is not None:
-            cls.discover()
-
-    def discover(cls):
-        cls.variables = cls.pattern.variables
-        cls.pattern.discover()
-        cls.instances = set()
-        for pattern_instance in cls.pattern.instances:
-            instance = cls(**pattern_instance)
-            instance.exists = True
-            cls.instances.add(instance)
-
-    def __iter__(cls):
-        return ResourceIterator(cls).each()
-
-    def each(cls):
-        return ResourceIterator(cls).each()
-
-    def all(cls):
-        return ResourceIterator(cls).all()
-
-    def first(cls):
-        return ResourceIterator(cls).first()
-
-    def where(cls, **kwargs):
-        return ResourceIterator(cls).where(kwargs)
-
-    def group_by(cls, key):
-        return ResourceIterator(cls).group_by(key)
-
-    def valid_keys(cls):
-        return cls.variables
-
-    def existing(cls):
-        return filter(lambda x: x.exists, cls.instances)
-
-    def pending(cls):
-        return filter(lambda x: not x.exists, cls.instances)
-
-    def build(cls, input):
-
-        output_attrs = {}
-        if not isinstance(input, list) and not isinstance(input, tuple):
-            # Terrible. The inputs/outputs need to be factored into objects...
-            input_variables = set(input.variables)
-
-            # If input is a single element, then the built resource's
-            # variables should be equal to the input resource's variables
-            if input_variables != set(cls.variables):
-                raise ValueError("Expected variables {0}. Got {1}".format(input_variables,
-                                                                          cls.variables))
-            for k in input.variables:
-                output_attrs[k] = getattr(input, k)
-        else:
-            # If we have a list of inputs, then the built resource must be a
-            # reduction and have fewer keys than the inputs. Any keys that the
-            # built resource has must be identical across all inputs.
-            set_variables = set(cls.variables)
-
-            # Initialize output using the first input
-            for k in cls.variables:
-                if k not in input[0].variables:
-                    raise ValueError("Expected {0} to be a variable of {1}".format(k, input[0]))
-                output_attrs[k] = getattr(input[0], k)
-
-            for item in input:
-                input_variables = set(item.variables)
-                if not set_variables.issubset(input_variables):
-                    raise ValueError("Expected {1} to be a subset of {0}".format(input_variables,
-                                                                                 cls.variables))
-                for k in cls.variables:
-                    if output_attrs[k] != getattr(item, k):
-                        raise ValueError("Expected {0}[{1}] to have value {2}".format(item, k, output_attrs[k]))
-                    pass
-
-        output_attrs["filename"] = cls.pattern.format(output_attrs)
-        new_instance = cls(**output_attrs)
-
-        if new_instance not in cls.instances:
-            cls.instances.add(new_instance)
-
-        return new_instance
-
-
-class FileResource(Resource):
-    __metaclass__ = FileResourceMeta
-    pattern = None
-
-    def __init__(self, **kwargs):
-        self.exists = False
-        allowed_fields = self.variables + ["filename"]
-        for k, v in kwargs.items():
-            if k not in allowed_fields:
-                raise ValueError("Valid values are {0}. Got {1}.".format(self.variables, k))
-            setattr(self, k, str(v))
-
-    def __eq__(self, other):
-        for k in self.variables:
-            if getattr(self, k) != getattr(other, k):
-                return False
-        return True
-
-    def __repr__(self):
-        repr = self.__class__.__name__
-        kv = ["{0}={1}".format(k , getattr(self, k)) for k in self.variables]
-        return "{0}: ({1})".format(self.__class__.__name__, ", ".join(kv))
-
-    def __hash__(self):
-        return hash(repr(self))
-
-    def __str__(self):
-        return repr(self)
-
-    @property
-    def id(self):
-        base = self.__class__.__name__
-        attrs = {}
-        for k in self.variables:
-            attrs[k] = getattr(self, k)
-        return "{0}_{1}".format(base, attrs)
 
 class Job(object):
 
@@ -442,34 +289,14 @@ class DependencyGraph(object):
 class Pipeline(object):
 
     def __init__(self):
-        self.current_dir = None
+        self.root_dir = ""
         self.jobs = {}
         self.globals = {}
 
         # Contains both resources and jobs
         self.resource_job_graph = DependencyGraph()
 
-    def file(self, template, name=None):
-
-        if self.current_dir is None:
-            raise Exception("Pipeline: must chdir before creating file resource.")
-
-        full_path = os.path.join(self.current_dir, template)
-
-        if full_path in globals():
-            return globals()[full_path]
-
-        pattern = FilePattern(self.current_dir, template)
-        dct = {"pattern": pattern}
-        if name is not None:
-            dct["name"] = name
-        resource = FileResourceMeta(full_path, (FileResource,), dct)
-
-        globals()[full_path] = resource
-
-        return resource
-
-    def chdir(self, new_dir):
+    def set_root(self, new_dir):
         if new_dir[0] == "/":
             pass
         elif new_dir[0] == ".":
@@ -480,35 +307,39 @@ class Pipeline(object):
             new_dir = "./" + new_dir
             new_dir = os.path.abspath(os.path.expanduser(new_dir))
 
-        self.current_dir = new_dir
+        self.root_dir = new_dir
 
-    def build_task(self, task_type, input, output, params):
-        # Can put logic here to build a task based on the class of
-        # task_type
-        input_dict = {}
-        output_dict = {}
-        if len(task_type.input) == 1:
-            input_dict[task_type.input.keys()[0]] = input
-        else:
-            input_dict = input
-        if len(task_type.output) == 1:
-            output_dict[task_type.output.keys()[0]] = output
-        else:
-            input_dict = input
+    def preprocess_filenames(self, file_group):
+        for name, value in file_group.items():
+            if isinstance(value, list):
+                new_list = []
+                for filename in value:
+                    new_list.append(os.path.join(self.root_dir, filename))
+                file_group[name] = new_list
+            else:
+                file_group[name] = os.path.join(self.root_dir, value)
+        return FileGroup(file_group)
 
-        task = task_type(input_dict, output_dict, params)
-        return task
-
-    def step(self, task_type, inputs, output_resource, **kwargs):
+    def add_task(self, task_type, input, output, **kwargs):
         params = self.globals.copy()
         params.update(kwargs)
-        for i, input in enumerate(inputs):
-            output = output_resource.build(input)
-            task = self.build_task(task_type, input, output, params)
-            job = Job(task)
-            self.resource_job_graph.add(input, job)
-            self.resource_job_graph.add(job, output)
-            self.jobs[job.id] = job
+        input = self.preprocess_filenames(input)
+        output = self.preprocess_filenames(output)
+        task = self.build_task(task_type, input, output, params)
+        job = Job(task)
+
+        for filename in input.flatten():
+            self.resource_job_graph.add(filename, job)
+
+        for filename in output.flatten():
+            self.resource_job_graph.add(job, filename)
+
+        self.jobs[job.id] = job
+
+    def build_task(self, task_type, input, output, params):
+        task_type._validate(input, output)
+        task = task_type(input, output, params)
+        return task
 
     def compute_job_graph(self):
         topological_joint = self.resource_job_graph.topological_sort()
@@ -516,10 +347,10 @@ class Pipeline(object):
                                              topological_joint)
         graph = DependencyGraph()
         for job in topological_jobs:
+            child_jobs = []
             for resource in self.resource_job_graph.children(job):
-                child_jobs = self.resource_job_graph.children(resource)
-                for child_job in child_jobs:
-                    graph.add(job, child_job)
+                child_jobs.extend(self.resource_job_graph.children(resource))
+            graph.add(job, child_jobs)
         self.job_graph = graph
 
     def run(self, num_cores_to_use=None):

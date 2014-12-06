@@ -4,6 +4,7 @@ import shutil
 import glob
 
 from unittest import TestCase
+from mock import patch
 from nose.tools import eq_, raises
 from nose.plugins.attrib import attr
 
@@ -20,6 +21,24 @@ class NoOp(Task):
 
     def run(self):
         pass
+
+class ImageProcessor(Task):
+
+    input = {'image': 'dummy'}
+    output = {'image': 'dummy'}
+
+    def run(self):
+        output_filename = self.output['image'].filename
+        open(output_filename, 'w').close()
+
+class ImageSummarizer(Task):
+
+    input = {'images': ['dummy']}
+    output = {'summary': 'dummy'}
+
+    def run(self):
+        output_filename = self.output['summary'].filename
+        open(output_filename, 'w').close()
 
 def iter_len(iterator):
     return len(list(iterator))
@@ -398,24 +417,6 @@ class PipelineStepTest(TestCase):
 
 class FullPipelineTest(TestCase):
 
-    class ImageProcessor(Task):
-
-        input = {'image': 'dummy'}
-        output = {'image': 'dummy'}
-
-        def run(self):
-            output_filename = self.output['image'].filename
-            open(output_filename, 'w').close()
-
-    class ImageSummarizer(Task):
-
-        input = {'images': ['dummy']}
-        output = {'summary': 'dummy'}
-
-        def run(self):
-            output_filename = self.output['summary'].filename
-            open(output_filename, 'w').close()
-
     def setUp(self):
         self.pipeline = Pipeline()
         fixture_path = os.path.join(fixtures_abspath, "test1")
@@ -433,8 +434,8 @@ class FullPipelineTest(TestCase):
         RawImage = self.pipeline.file("{camera}_{scene}.jpg")
         ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg")
         Summary = self.pipeline.file("summary.txt")
-        self.pipeline.step(self.ImageProcessor, RawImage, ProcessedImage)
-        self.pipeline.step(self.ImageSummarizer, ProcessedImage.all(), Summary)
+        self.pipeline.step(ImageProcessor, RawImage, ProcessedImage)
+        self.pipeline.step(ImageSummarizer, ProcessedImage.all(), Summary)
         success = self.pipeline.run()
         self.assertTrue(success)
 
@@ -468,9 +469,55 @@ class FullPipelineTest(TestCase):
 
         # pipeline.step will try to build processed images for each raw image,
         # but it shouldn't change the number of processed images.
-        self.pipeline.step(self.ImageProcessor, RawImage, ProcessedImage)
+        self.pipeline.step(ImageProcessor, RawImage, ProcessedImage)
 
         iter_len_eq(ProcessedImage, 6)
+
+class TaskExecutionControlTest(TestCase):
+    """
+    Tests whether the test is run if the file already exists and is up-to-date,
+    or is forced, etc.
+    """
+
+    def setUp(self):
+        self.pipeline = Pipeline()
+        fixture_path = os.path.join(fixtures_abspath, "test1")
+        self.test_path = os.path.join(fixtures_abspath, "test1_tmp")
+        if os.path.exists(self.test_path):
+            shutil.rmtree(self.test_path)
+        shutil.copytree(fixture_path, self.test_path)
+        self.pipeline.chdir(self.test_path)
+
+    def tearDown(self):
+        shutil.rmtree(self.test_path)
+
+    def test_task_run_when_files_do_not_exist(self):
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg")
+        self.pipeline.step(ImageProcessor, RawImage, ProcessedImage)
+        print len(self.pipeline.jobs)
+        print self.pipeline.run()
+        import time; time.sleep(1)
+        print glob.glob(self.test_path + "/*")
+        print os.path.getmtime(RawImage.first().filename)
+        print os.path.getmtime(ProcessedImage.first().filename)
+        goo
+        #todo add attr to jobs and check that they are done not skipped
+        #with patch.object(ImageProcessor, 'run', return_value=True) as mock_method:
+        #    self.pipeline.step(ImageProcessor, RawImage, ProcessedImage)
+        #    self.pipeline.run()
+        #    self.assertEqual(mock_method.call_count, len(RawImage))
+
+    def test_task_not_run_when_files_exist(self):
+        RawImage = self.pipeline.file("{camera}_{scene}.jpg")
+        ProcessedImage = self.pipeline.file("{camera}_{scene}_processed.jpg")
+        for pi in ProcessedImage:
+            open(pi.filename, 'w').close()
+        #with patch.object(ImageProcessor, 'run', return_value=True) as mock_method:
+        #    self.pipeline.step(ImageProcessor, RawImage, ProcessedImage)
+        #    self.pipeline.run()
+        #self.assertFalse(mock_method.called, False)
+
 
 class DependencyGraphTest(TestCase):
 
@@ -513,4 +560,3 @@ class DependencyGraphTest(TestCase):
         roots = graph.roots()
 
         self.assertListEqual(roots, [0,1])
-
