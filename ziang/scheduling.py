@@ -1,6 +1,6 @@
+import networkx as nx
 
-
-class HyperEdge(object):    
+class Job(object):    
 
     def __init__(self,name,inputs,outputs,data):
         assert isinstance(name,str) and isinstance(inputs,list) and isinstance(outputs,list) and isinstance(data,dict)
@@ -9,74 +9,86 @@ class HyperEdge(object):
         self.outputs = outputs
         self.data = data
     def __repr__(self):
-        return "HyperEdge(%s,%s,%s,%s)"%(self.name,self.inputs,self.outputs,self.data)
+        return "Job(%s,%s,%s,%s)"%(self.name,self.inputs,self.outputs,self.data)
 
-class Node(object):
+class Resource(object):
 
     def __init__(self,name,data):
         assert isinstance(name,str) and isinstance(data,dict)
         self.name = name
         self.data = data
     def __repr__(self):
-        return "Node(%s,%s)"%(self.name,self.data)
+        return "Resource(%s,%s)"%(self.name,self.data)
 
-class DirectedHypergraph(object):
+class TaskHypergraph(object):
 
     def __init__(self):
-        self.edges = []
-        self.nodes = []
+        self.jobs = []
+        self.resources = []
+        self.g = nx.DiGraph()
 
-    def get_nodes(self):
-        return self.nodes
+    def get_resources(self):
+        return self.resources
 
-    def get_edges(self):
-        return self.edges
+    def get_jobs(self):
+        return self.jobs
     
-    def add_edge(self,edge):
-        assert isinstance(edge,HyperEdge)
-        self.edges.append(edge)
+    def add_job(self,job):
+        assert isinstance(job,Job)
+        self.jobs.append(job)
+        self.g.add_node(job.name,obj=job,type="job")
+        for res in job.inputs:
+            self.g.add_edge(job.name,res)
+        for res in job.outputs:
+            self.g.add_edge(res,job.name)
 
-    def add_node(self,node):
-        assert isinstance(node,Node)
-        self.nodes.append(node)
+    def add_resource(self,resource):
+        assert isinstance(resource,Resource)
+        self.resources.append(resource)
+        self.g.add_node(resource.name,obj=resource, type="resource")
 
+    def get_resource(self,resource_name):
+        return self.g.node[resource_name]["obj"]
 
-    def get_incoming_edges(self,node_name):
-        assert isinstance(node_name,str)
-        # XXX inefficient
-        return [edge for edge in self.edges if node_name in edge.outputs]
+    def get_job(self, job_name):
+        return self.g.node[job_name]["obj"]
 
-    def get_outgoing_edges(self,node_name):
-        assert isinstance(node_name,str)
-        # XXX inefficient
-        return [edge for edge in self.edges if node_name in edge.inputs]
+    def get_incoming_jobs(self,resource_name):
+        return self.g.node[resource_name].in_jobs()
+
+    def get_outgoing_jobs(self,resource_name):
+        return self.g.node[resource_name].out_jobs()
+
+    def jobs_toposorted(self):
+        return [resource for resource in nx.topological_sort(self.g,reverse=True) if self.g.node[resource]["type"] == "job"]
+
 
 def generate_task_graph(dependency_graph):
-    is_initial = lambda node: dependency_graph.graph.in_degree(node)==0
-    is_final = lambda node: dependency_graph.graph.out_degree(node)==0
-    from ziang import Job
-    task_graph = DirectedHypergraph()
-    for node in dependency_graph.graph.nodes_iter():
-        if isinstance(node,Job):
-            # Job corresponds to edge
-            inputs = dependency_graph.parents(node)
-            outputs = dependency_graph.children(node)
-            task_graph.add_edge(HyperEdge(node.id,inputs,outputs,{"obj":node,"type":"job"}))            
+    is_initial = lambda resource: dependency_graph.graph.in_degree(resource)==0
+    is_final = lambda resource: dependency_graph.graph.out_degree(resource)==0
+    import ziang
+    task_graph = TaskHypergraph()
+    for resource in dependency_graph.graph.nodes_iter():
+        if isinstance(resource,ziang.Job):
+            # Job corresponds to job
+            inputs = dependency_graph.parents(resource)
+            outputs = dependency_graph.children(resource)
+            task_graph.add_job(Job(resource.id,inputs,outputs,{"obj":resource,"type":"job"}))
         else:
-            task_graph.add_node(Node(node,{"done":is_initial(node),"final":is_final(node)}))
+            task_graph.add_resource(Resource(resource,{"done":is_initial(resource),"final":is_final(resource)}))
     return task_graph
 
 
-def get_frontier_edges(aug):
+def get_frontier_jobs(aug):
     """
 
-    Find all edges that are not done but they are ready (all input nodes are done)
+    Find all jobs that are not done but they are ready (all input resources are done)
     """
     frontier = []
-    for edge in aug.get_edges():
-        if not edge.data["done"]:
-            if all(input.data["done"] for input in edge.inputs):
-                frontier.append(edge)
+    for job in aug.get_jobs():
+        if not job.data["done"]:
+            if all(input.data["done"] for input in job.inputs):
+                frontier.append(job)
     return frontier
 
 
@@ -117,9 +129,9 @@ class ClusterScheduler(object):
         See if worker is assigned to task that is on the frontier of active task graph (self.active).        
         """
         assert self.plan_is_ready()
-        for node in get_frontier_edges(self.active):
-            if node["worker"] == worker_id:
-                return node["job"]
+        for resource in get_frontier_jobs(self.active):
+            if resource["worker"] == worker_id:
+                return resource["job"]
         return None
 
     def plan_is_ready(self):
@@ -163,29 +175,29 @@ def djikstra(state_initial, is_goal, get_actions, successor, compute_score, comp
                     next_score = compute_score(next_state)
                     pq.push(next_score,next_state)
 
-from collections import namedtuple
-import numpy as np
-import hashlib
 
 def plan_with_djikstra(tg,n_computers):
+    from collections import namedtuple
+    import numpy as np
+    import hashlib
     State = namedtuple("State",["resources", "job_done", "comp_ready_time", "last_time","actions"])
-    n_jobs = len(tg.edges)
+    n_jobs = len(tg.jobs)
 
 
 
 
-    finals = [node.name for node in tg.nodes if len(tg.get_outgoing_edges(node.name))==0]
+    finals = [resource.name for resource in tg.get_resources() if len(tg.get_outgoing_jobs(resource.name))==0]
 
     is_goal = lambda state: all(final in state.resources[0] for final in finals)
 
     send_dur = lambda res:0.1
-    job_dur = lambda jobidx:tg.edges[jobidx].data["dur"]
+    job_dur = lambda jobidx:tg.jobs[jobidx].data["job_dur"]
 
     Action = namedtuple("Action",["type","loc","jobidx","fromto","res"])
 
     def action_repr(action):
         if action.type=="c":
-            return "%s @ %i"%(tg.edges[action.jobidx].name,action.loc)
+            return "%s @ %i"%(tg.jobs[action.jobidx].name,action.loc)
         else:
             return "send %s @ %i->%i"%(action.res, action.fromto[0], action.fromto[1])
 
@@ -207,14 +219,14 @@ def plan_with_djikstra(tg,n_computers):
         # Computation actions
         for i_job in xrange(n_jobs):
             for i_c in xrange(n_computers):
-                if all(input in state.resources[i_c] for input in tg.edges[i_job].inputs) and not all(output in state.resources[i_c] for output in tg.edges[i_job].outputs):
+                if all(input in state.resources[i_c] for input in tg.jobs[i_job].inputs) and not all(output in state.resources[i_c] for output in tg.jobs[i_job].outputs):
                     yield Action("c",i_c,i_job,None,None)
-        for node in tg.nodes:
-            node_name = node.name
+        for resource in tg.get_resources():
+            resource_name = resource.name
             for i_c in xrange(n_computers):
                 for j_c in xrange(n_computers):
-                    if (i_c != j_c) and (node_name in state.resources[i_c]) and not (node_name in state.resources[j_c]):
-                        yield Action("s",None,None,(i_c,j_c),node_name)
+                    if (i_c != j_c) and (resource_name in state.resources[i_c]) and not (resource_name in state.resources[j_c]):
+                        yield Action("s",None,None,(i_c,j_c),resource_name)
     def get_actions(state):
         for a in get_actions1(state):
             # print action_repr(a), state.resources
@@ -229,7 +241,7 @@ def plan_with_djikstra(tg,n_computers):
         if action.type == "c":
             start_time = state.comp_ready_time[action.loc]
             if start_time < state.last_time: return None
-            new_resources[action.loc].update(tg.edges[action.jobidx].outputs)
+            new_resources[action.loc].update(tg.jobs[action.jobidx].outputs)
             new_job_done[action.jobidx] = True
             new_comp_ready_time[action.loc] = start_time + job_dur(action.jobidx)
             new_last_time = start_time
@@ -247,17 +259,74 @@ def plan_with_djikstra(tg,n_computers):
 
 
     def compute_score(state):
-        comp_lb = sum( edge.data['dur'] for (jobidx,edge) in enumerate(tg.edges) if not state.job_done[jobidx] )
+        comp_lb = sum( job.data['dur'] for (jobidx,job) in enumerate(tg.jobs) if not state.job_done[jobidx] )
         comm_lb = 0
         lb = (comp_lb+comm_lb) / n_computers        
         return state.last_time + lb*1.2
 
     state_initial = State([set() for _ in xrange(n_computers)], np.zeros(n_jobs,dtype=bool), np.zeros(n_computers,dtype='float32'), 0, []) #pylint: disable=E1101
-    state_initial.resources[0].update(node.name for node in tg.nodes if node.data['done'])
+    state_initial.resources[0].update(resource.name for resource in tg.resources if resource.data['done'])
 
 
     state_solution = djikstra(state_initial, is_goal,get_actions,successor,compute_score,compute_hash)
     print [action_repr(action) for action in state_solution.actions]
+
+def hill_climb(initial_soln,compute_move,compute_cost,n_trials):
+    current_cost = compute_cost(initial_soln)
+    current_soln = initial_soln
+    for i_trial in xrange(n_trials):
+        if i_trial % 1000 == 0:
+            print "trial %i cost %f"%(i_trial,current_cost)
+        candidate_soln = compute_move(current_soln)
+        candidate_cost = compute_cost(candidate_soln)
+        if candidate_cost < current_cost:
+            current_cost = candidate_cost
+            current_soln = candidate_soln
+    return current_cost, current_soln
+
+import random
+def plan_with_hill_climb(tg,n_computers):
+    initial_soln = {job.name:0 for job in tg.get_jobs()}
+
+    def compute_move(soln):
+        new_soln = soln.copy()
+        changejob = random.choice(soln.keys())
+        # newval = random integer in [0,n_computers-1] != soln[idx]
+        newval = random.randint(0,n_computers-2)
+        if newval >= soln[changejob]: newval += 1
+        new_soln[changejob] = newval
+        return new_soln
+    def compute_cost_lowerbound(soln):
+        # print soln
+        # ignore bandwidth and assume topological sort gives you the right ordering
+        resource2creationtimeloc = {resource.name:(0.0,0) for resource in tg.resources if resource.data['done']}
+        computer2nextfreetime = [0 for _ in xrange(n_computers)]
+        job2start = {}
+        t_total = 0
+        for job_name in tg.jobs_toposorted():
+            job = tg.get_job(job_name)
+            job_loc = soln[job_name]
+            t_startjob = computer2nextfreetime[job_loc]
+            for resource_name in job.inputs:
+                t_resource,i_loc = resource2creationtimeloc[resource_name]
+                t_startjob = max(t_startjob,t_resource + (i_loc != job_loc)*tg.get_resource(resource_name).data["send_dur"] )
+            job2start[job_name] = t_startjob
+            t_finishjob = t_startjob + job.data["job_dur"]
+            computer2nextfreetime[job_loc] = t_finishjob
+            for resource_name in job.outputs:
+                resource2creationtimeloc[resource_name] = (t_finishjob,job_loc)
+
+            t_total = max(t_total, t_finishjob)
+        # print resource2creationtimeloc,job2start
+
+        return t_total
+
+
+    soln = hill_climb(initial_soln, compute_move, compute_cost_lowerbound,10000)
+    print soln
+
+
+
 
 
 
@@ -303,19 +372,20 @@ def test():
 
     dg=pipeline.resource_job_graph
     tg = generate_task_graph(dg)
-    assert any(node.data["final"] for node in tg.get_nodes())
+    assert any(resource.data["final"] for resource in tg.get_resources())
 
 
-    for edge in tg.get_edges():
-        if edge.data["type"] == "comm":
-            edge.data["dur"] = 1.0
-        else:
-            edge.data["dur"] = 10.0
+    for job in tg.get_jobs():
+        job.data["job_dur"] = 10.0
+
+    for resource in tg.get_resources():
+        resource.data["send_dur"] = 1.0
 
 
-    assert any(node.data["final"] for node in tg.get_nodes())
+    assert any(resource.data["final"] for resource in tg.get_resources())
     # plan_with_ilp(tg)
-    plan_with_djikstra(tg,2)
+    # plan_with_djikstra(tg,2)
+    plan_with_hill_climb(tg,3)
 
 
 if __name__ == "__main__":
