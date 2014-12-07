@@ -312,9 +312,11 @@ def plan_with_hill_climb(tg,n_computers,n_trials=5000):
     """
     initial_soln = {job.name:0 for job in tg.get_jobs()}
 
+    job_iter = itertools.cycle([job.name for job in tg.get_jobs()])
     def compute_move(soln):
         new_soln = soln.copy()
-        changejob = random.choice(soln.keys())
+        changejob = job_iter.next()
+        # changejob = random.choice(soln.keys())
         # newval = random integer in [0,n_computers-1] != soln[idx]
         newval = random.randint(0,n_computers-2)
         if newval >= soln[changejob]: newval += 1
