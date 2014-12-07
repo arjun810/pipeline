@@ -138,9 +138,10 @@ class PriorityQueue(object):
     def pop(self):
         return heapq.heappop(self.h)
 
-def djikstra(state_initial, is_goal, get_actions, successor, compute_score):
+def djikstra(state_initial, is_goal, get_actions, successor, compute_score, compute_hash=None):
     pq = PriorityQueue()
     pq.push(0.0,state_initial)
+    closed = set()
     while True:
         try:
             score,_,state = pq.pop()
@@ -150,14 +151,21 @@ def djikstra(state_initial, is_goal, get_actions, successor, compute_score):
         if is_goal(state):
             return state
         else:
-            for action in get_actions(state):
+            for action in get_actions(state):                
                 next_state = successor(state,action)
                 if next_state is not None:
+                    if compute_hash is not None:
+                        h = compute_hash(next_state)
+                        if h in closed: 
+                            continue
+                        else:
+                            closed.add(h)
                     next_score = compute_score(next_state)
                     pq.push(next_score,next_state)
 
 from collections import namedtuple
 import numpy as np
+import hashlib
 
 def plan_with_djikstra(tg,n_computers):
     State = namedtuple("State",["resources", "job_done", "comp_ready_time", "last_time","actions"])
@@ -184,6 +192,17 @@ def plan_with_djikstra(tg,n_computers):
     def copy_resources(resources):
         return [s.copy() for s in resources]
 
+    def compute_hash(state):
+        h = hashlib.md5()
+        for (i,res_set) in enumerate(state.resources):
+            h.update(str(i))
+            for res in res_set:
+                h.update(res)
+        h.update(state.job_done)
+        h.update(state.comp_ready_time)
+        h.update(state.last_time)
+        return h.hexdigest()
+
     def get_actions1(state):
         # Computation actions
         for i_job in xrange(n_jobs):
@@ -200,6 +219,7 @@ def plan_with_djikstra(tg,n_computers):
         for a in get_actions1(state):
             # print action_repr(a), state.resources
             yield a
+
     def successor(state,action):
 
         new_resources = copy_resources(state.resources)
@@ -236,7 +256,7 @@ def plan_with_djikstra(tg,n_computers):
     state_initial.resources[0].update(node.name for node in tg.nodes if node.data['done'])
 
 
-    state_solution = djikstra(state_initial, is_goal,get_actions,successor,compute_score)
+    state_solution = djikstra(state_initial, is_goal,get_actions,successor,compute_score,compute_hash)
     print [action_repr(action) for action in state_solution.actions]
 
 
