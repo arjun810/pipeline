@@ -1,7 +1,6 @@
 import networkx as nx
 
 class Job(object):    
-
     def __init__(self,name,inputs,outputs,data):
         assert isinstance(name,str) and isinstance(inputs,list) and isinstance(outputs,list) and isinstance(data,dict)
         self.name = name
@@ -21,6 +20,11 @@ class Resource(object):
         return "Resource(%s,%s)"%(self.name,self.data)
 
 class TaskHypergraph(object):
+
+    """
+    Data structure with a set of jobs and a set of resources,
+    which is convenient for planning algorithms
+    """
 
     def __init__(self):
         self.jobs = []
@@ -64,6 +68,9 @@ class TaskHypergraph(object):
 
 
 def generate_task_graph(dependency_graph):
+    """
+    Convert pipeline.DependencyGraph into TaskHypergraph
+    """
     is_initial = lambda resource: dependency_graph.graph.in_degree(resource)==0
     is_final = lambda resource: dependency_graph.graph.out_degree(resource)==0
     import ziang
@@ -81,7 +88,6 @@ def generate_task_graph(dependency_graph):
 
 def get_frontier_jobs(aug):
     """
-
     Find all jobs that are not done but they are ready (all input resources are done)
     """
     frontier = []
@@ -93,7 +99,9 @@ def get_frontier_jobs(aug):
 
 
 class ClusterScheduler(object):
-
+    """
+    Not currently functional
+    """
     def __init__(self, aug):
         self.aug = aug
         self.active = None
@@ -272,6 +280,19 @@ def plan_with_djikstra(tg,n_computers):
     print [action_repr(action) for action in state_solution.actions]
 
 def hill_climb(initial_soln,compute_move,compute_cost,n_trials):
+    """
+    Hill climbing algorithm
+    Iteratively perturb the solution and see if the cost improves
+
+
+    Inputs
+    -------
+    initial_soln : solution data structure
+
+    compute_move : function: soln -> soln, which generates a new random solution from the old one
+    compute_cost : function: soln -> float, which gives the cost of a solution
+    n_trials : how many random solutions to try out
+    """
     current_cost = compute_cost(initial_soln)
     current_soln = initial_soln
     for i_trial in xrange(n_trials):
@@ -285,7 +306,10 @@ def hill_climb(initial_soln,compute_move,compute_cost,n_trials):
     return current_cost, current_soln
 
 import random
-def plan_with_hill_climb(tg,n_computers):
+def plan_with_hill_climb(tg,n_computers,n_trials=5000):
+    """
+    Compute an assignment of tasks to computers with a hill combing algorithm
+    """
     initial_soln = {job.name:0 for job in tg.get_jobs()}
 
     def compute_move(soln):
@@ -322,8 +346,7 @@ def plan_with_hill_climb(tg,n_computers):
         return t_total
 
 
-    soln = hill_climb(initial_soln, compute_move, compute_cost_lowerbound,10000)
-    print soln
+    return hill_climb(initial_soln, compute_move, compute_cost_lowerbound,n_trials)
 
 
 
@@ -354,7 +377,7 @@ def test():
     pipeline.set_root("data")
 
     cameras = ['A', 'B', 'C']
-    scenes = [0,1]
+    scenes = range(50)
 
     for camera in cameras:
         for scene in scenes:
@@ -385,7 +408,8 @@ def test():
     assert any(resource.data["final"] for resource in tg.get_resources())
     # plan_with_ilp(tg)
     # plan_with_djikstra(tg,2)
-    plan_with_hill_climb(tg,3)
+    cost,job2loc = plan_with_hill_climb(tg,3)
+    print cost,job2loc
 
 
 if __name__ == "__main__":
