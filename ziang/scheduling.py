@@ -41,6 +41,16 @@ class DirectedHypergraph(object):
         self.nodes.append(node)
 
 
+    def get_incoming_edges(self,node_name):
+        assert isinstance(node_name,str)
+        # XXX inefficient
+        return [edge for edge in self.edges if node_name in edge.outputs]
+
+    def get_outgoing_edges(self,node_name):
+        assert isinstance(node_name,str)
+        # XXX inefficient
+        return [edge for edge in self.edges if node_name in edge.inputs]
+
 def generate_task_graph(dependency_graph):
     is_initial = lambda node: dependency_graph.graph.in_degree(node)==0
     is_final = lambda node: dependency_graph.graph.out_degree(node)==0
@@ -55,37 +65,6 @@ def generate_task_graph(dependency_graph):
         else:
             task_graph.add_node(Node(node,{"done":is_initial(node),"final":is_final(node)}))
     return task_graph
-
-
-def generate_augmented_task_graph(task_graph,n_computers):
-    """    
-    Generate a new graph that describes computational task in the cluster setting
-    Each node is associated with 
-
-    """
-    def nodename(orig_id,computer_idx):
-        return "%s_%s"%(orig_id, computer_idx)
-
-
-    aug = DirectedHypergraph()
-    for node in task_graph.get_nodes():
-        for i_computer in xrange(n_computers):
-            # Node corresponding to having resource on a particular computer
-            new_node = Node( nodename(node.name,i_computer), node.data.copy())            
-            new_node.data["done"] = (i_computer==0) and node.data["done"]
-            new_node.data["final"] = (i_computer==0) and node.data["final"]
-            aug.add_node( new_node )
-            # Edge corresponding to sending resource from i to j
-            for j_computer in xrange(n_computers):
-                if j_computer != i_computer:
-                    name="send_%s_%i->%i"%(node.name,i_computer,j_computer)
-                    aug.add_edge(HyperEdge(name, [nodename(node.name,i_computer)], [nodename(node.name,j_computer)], {"type":"comm","fromto":(i_computer,j_computer)}))
-    for edge in task_graph.get_edges():
-        for i_computer in xrange(n_computers):
-            aug.add_edge(HyperEdge(edge.name, [nodename(node_id,i_computer) for node_id in edge.inputs] , [nodename(node_id,i_computer) for node_id in edge.outputs], edge.data.copy()))
-    return aug
-
-# def generate_schedule(task_graph):
 
 
 def get_frontier_edges(aug):
@@ -122,7 +101,7 @@ class ClusterScheduler(object):
         return new_job_id
 
     def get_current_job(self, worker_id):
-        return self.worker2job[worker_id]
+        return self.worker2job.get(worker_id)
 
     def mark_as_done(self, job_id):
         worker_id = self.job2worker[job_id]
@@ -146,43 +125,120 @@ class ClusterScheduler(object):
     def plan_is_ready(self):
         return self.active is not None
 
-    def plan(self):
-        raise NotImplementedError
 
-def plan_with_ilp(tg):
-    """
-    Plan for a generic task hypergraph
-    Each node and hyper-edge will have the "time" field added to its data dict.
-    "time" will be set to None if the node's resource is never produced or the edge's job is never performed
-    """
+import heapq
+import itertools
+class PriorityQueue(object):
+    def __init__(self):
+        self.h = []
+        self.count = itertools.count()
+    def push(self,score,item):
+        assert isinstance(score,float)
+        heapq.heappush(self.h,(score,self.count.next(),item))
+    def pop(self):
+        return heapq.heappop(self.h)
 
-    import gurobipy
-    m = gurobipy.Model()    
-    edge2active = {}
-    edge2start = {}
-    node2done = {}
-    t_total = m.addVar(vtype="C")
-    t_max = 1000 # XXX
-    for edge in tg.get_edges():
-        edge2active[edge.name] = m.addVar(vtype="B")
-        edge2start[edge.name] = m.addVar(vtype="C")
-    for node in tg.get_nodes():
-        node2done[node.name] = m.addVar(vtype="C")
-    m.update()
-    for node in tg.get_nodes():
-        if node.data["final"]:
-            m.addConstr(t_total >= node2done[node.name])
-    for edge in tg.get_edges():
-        for node_name in edge.inputs:
-            m.addConstr(edge2start[edge.name] >= node2done[node_name])
-        for node_name in edge.outputs:
-            m.addConstr(node2done[node_name] >= edge2start[edge.name] + edge2active[edge.name]*edge.data["duration"])
-        m.addConstr(edge2start[edge.name] >= (1-edge2active[edge.name])*t_max) # if edge is inactive, its time >= t_max
-    m.setObjective(t_total)
-    m.optimize()
+def djikstra(state_initial, is_goal, get_actions, successor, compute_score):
+    pq = PriorityQueue()
+    pq.push(0.0,state_initial)
+    while True:
+        try:
+            score,_,state = pq.pop()
+        except IndexError:
+            print "failed to find path"
+            break
+        if is_goal(state):
+            return state
+        else:
+            for action in get_actions(state):
+                next_state = successor(state,action)
+                if next_state is not None:
+                    next_score = compute_score(next_state)
+                    pq.push(next_score,next_state)
 
-    import IPython
-    IPython.embed()
+from collections import namedtuple
+import numpy as np
+
+def plan_with_djikstra(tg,n_computers):
+    State = namedtuple("State",["resources", "job_done", "comp_ready_time", "last_time","actions"])
+    n_jobs = len(tg.edges)
+
+
+
+
+    finals = [node.name for node in tg.nodes if len(tg.get_outgoing_edges(node.name))==0]
+
+    is_goal = lambda state: all(final in state.resources[0] for final in finals)
+
+    send_dur = lambda res:0.1
+    job_dur = lambda jobidx:tg.edges[jobidx].data["dur"]
+
+    Action = namedtuple("Action",["type","loc","jobidx","fromto","res"])
+
+    def action_repr(action):
+        if action.type=="c":
+            return "%s @ %i"%(tg.edges[action.jobidx].name,action.loc)
+        else:
+            return "send %s @ %i->%i"%(action.res, action.fromto[0], action.fromto[1])
+
+    def copy_resources(resources):
+        return [s.copy() for s in resources]
+
+    def get_actions1(state):
+        # Computation actions
+        for i_job in xrange(n_jobs):
+            for i_c in xrange(n_computers):
+                if all(input in state.resources[i_c] for input in tg.edges[i_job].inputs) and not all(output in state.resources[i_c] for output in tg.edges[i_job].outputs):
+                    yield Action("c",i_c,i_job,None,None)
+        for node in tg.nodes:
+            node_name = node.name
+            for i_c in xrange(n_computers):
+                for j_c in xrange(n_computers):
+                    if (i_c != j_c) and (node_name in state.resources[i_c]) and not (node_name in state.resources[j_c]):
+                        yield Action("s",None,None,(i_c,j_c),node_name)
+    def get_actions(state):
+        for a in get_actions1(state):
+            # print action_repr(a), state.resources
+            yield a
+    def successor(state,action):
+
+        new_resources = copy_resources(state.resources)
+        new_job_done = state.job_done.copy()
+        new_comp_ready_time = state.comp_ready_time.copy()
+
+        if action.type == "c":
+            start_time = state.comp_ready_time[action.loc]
+            if start_time < state.last_time: return None
+            new_resources[action.loc].update(tg.edges[action.jobidx].outputs)
+            new_job_done[action.jobidx] = True
+            new_comp_ready_time[action.loc] = start_time + job_dur(action.jobidx)
+            new_last_time = start_time
+        else:
+            fro,to = action.fromto
+            start_time = max(state.comp_ready_time[fro],state.comp_ready_time[to])
+            if start_time < state.last_time: return None
+            assert fro!=to
+            new_resources[to].add(action.res)
+            new_comp_ready_time[fro] = new_comp_ready_time[to] = start_time + send_dur(action.res)
+            new_last_time = start_time
+
+        new_actions = state.actions + [action]            
+        return State(new_resources, new_job_done, new_comp_ready_time, new_last_time, new_actions)
+
+
+    def compute_score(state):
+        comp_lb = sum( edge.data['dur'] for (jobidx,edge) in enumerate(tg.edges) if not state.job_done[jobidx] )
+        comm_lb = 0
+        lb = (comp_lb+comm_lb) / n_computers        
+        return state.last_time + lb*1.2
+
+    state_initial = State([set() for _ in xrange(n_computers)], np.zeros(n_jobs,dtype=bool), np.zeros(n_computers,dtype='float32'), 0, []) #pylint: disable=E1101
+    state_initial.resources[0].update(node.name for node in tg.nodes if node.data['done'])
+
+
+    state_solution = djikstra(state_initial, is_goal,get_actions,successor,compute_score)
+    print [action_repr(action) for action in state_solution.actions]
+
 
 
 def test():
@@ -208,8 +264,8 @@ def test():
     pipeline = Pipeline()
     pipeline.set_root("data")
 
-    cameras = ['N1', 'NP1', 'NP2']
-    scenes = [0, 1]
+    cameras = ['A', 'B', 'C']
+    scenes = [0,1]
 
     for camera in cameras:
         for scene in scenes:
@@ -228,15 +284,18 @@ def test():
     dg=pipeline.resource_job_graph
     tg = generate_task_graph(dg)
     assert any(node.data["final"] for node in tg.get_nodes())
-    aug = generate_augmented_task_graph(tg,4)
 
-    for edge in aug.get_edges():
+
+    for edge in tg.get_edges():
         if edge.data["type"] == "comm":
-            edge.data["duration"] = 1.0
+            edge.data["dur"] = 1.0
         else:
-            edge.data["duration"] = 10.0
-    assert any(node.data["final"] for node in aug.get_nodes())
-    plan_with_ilp(aug)
+            edge.data["dur"] = 10.0
+
+
+    assert any(node.data["final"] for node in tg.get_nodes())
+    # plan_with_ilp(tg)
+    plan_with_djikstra(tg,2)
 
 
 if __name__ == "__main__":
