@@ -450,10 +450,12 @@ def test():
     print "TIME FROM NAIVE PLANNER", cost_naive
     assert cost_naive == compute_cost_with_assignment(tg, job2loc_naive, n_computers)
 
+    print "RUNNING HILL-CLIMBING PLANNER"
     cost_hc,job2loc_hc = plan_with_hill_climb(tg,n_computers)
     print "TIME FROM HILL-CLIMBING PLANNER",cost_hc
     assert cost_hc == compute_cost_with_assignment(tg, job2loc_hc, n_computers)
 
+    print "RUNNING HILL-CLIMBING PLANNER INITIALIZED FROM NAIVE PLANNER"
     cost_hc,job2loc_hc = plan_with_hill_climb(tg,n_computers,initialize=job2loc_naive)
     print "TIME FROM HILL-CLIMBING PLANNER INITIALIZED WITH NAIVE",cost_hc
     assert cost_hc == compute_cost_with_assignment(tg, job2loc_hc, n_computers)
