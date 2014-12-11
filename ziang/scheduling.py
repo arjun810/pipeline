@@ -306,11 +306,15 @@ def hill_climb(initial_soln,compute_move,compute_cost,n_trials):
     return current_cost, current_soln
 
 import random
-def plan_with_hill_climb(tg,n_computers,n_trials=5000):
+def plan_with_hill_climb(tg,n_computers,n_trials=5000,initialize=None):
     """
     Compute an assignment of tasks to computers with a hill combing algorithm
     """
-    initial_soln = {job.name:0 for job in tg.get_jobs()}
+
+    if initialize is None:
+        initial_soln = {job.name:0 for job in tg.get_jobs()}
+    else:
+        initial_soln = {job.name:initialize[job.name] for job in tg.get_jobs()}
 
     job_iter = itertools.cycle([job.name for job in tg.get_jobs()])
     def compute_move(soln):
@@ -322,35 +326,61 @@ def plan_with_hill_climb(tg,n_computers,n_trials=5000):
         if newval >= soln[changejob]: newval += 1
         new_soln[changejob] = newval
         return new_soln
-    def compute_cost_lowerbound(soln):
-        # print soln
-        # ignore bandwidth and assume topological sort gives you the right ordering
-        resource2creationtimeloc = {resource.name:(0.0,0) for resource in tg.resources if resource.data['done']}
-        computer2nextfreetime = [0 for _ in xrange(n_computers)]
-        job2start = {}
-        t_total = 0
-        for job_name in tg.jobs_toposorted():
-            job = tg.get_job(job_name)
-            job_loc = soln[job_name]
-            t_startjob = computer2nextfreetime[job_loc]
-            for resource_name in job.inputs:
-                t_resource,i_loc = resource2creationtimeloc[resource_name]
-                t_startjob = max(t_startjob,t_resource + (i_loc != job_loc)*tg.get_resource(resource_name).data["send_dur"] )
-            job2start[job_name] = t_startjob
-            t_finishjob = t_startjob + job.data["job_dur"]
-            computer2nextfreetime[job_loc] = t_finishjob
-            for resource_name in job.outputs:
-                resource2creationtimeloc[resource_name] = (t_finishjob,job_loc)
 
-            t_total = max(t_total, t_finishjob)
-        # print resource2creationtimeloc,job2start
-
-        return t_total
-
+    compute_cost_lowerbound = lambda soln : compute_cost_with_assignment(tg, soln, n_computers)
 
     return hill_climb(initial_soln, compute_move, compute_cost_lowerbound,n_trials)
 
+def compute_cost_naive(tg, n_computers,return_job2loc=False):
+    """
+    Compute cost of naive controller ignoring bandwidth limits and NOT doing concurrent computation & download
+    """
+    resource2creationtimeloc = {resource.name:(0.0,0) for resource in tg.resources if resource.data['done']}    
+    computer_queue = PriorityQueue()
+    job2loc = {}
+    t_total=0
+    for i in xrange(n_computers):
+        computer_queue.push(0.0,i)
 
+    for job_name in tg.jobs_toposorted():
+        job = tg.get_job(job_name)
+        t_startjob,_,job_loc = computer_queue.pop()
+        for resource_name in job.inputs:
+            t_resource,i_loc = resource2creationtimeloc[resource_name]
+            t_startjob = max(t_startjob,t_resource + (i_loc != job_loc)*tg.get_resource(resource_name).data["send_dur"] )
+        t_finishjob = t_startjob + job.data["job_dur"]
+        for resource_name in job.outputs:
+            resource2creationtimeloc[resource_name] = (t_finishjob,job_loc)
+
+        t_total = max(t_total, t_finishjob)
+        computer_queue.push(t_finishjob,job_loc)
+        job2loc[job.name] = job_loc
+
+
+    if return_job2loc:
+        return t_total,job2loc
+    else:
+        return t_total
+
+def compute_cost_with_assignment(tg, job2loc, n_computers):
+    resource2creationtimeloc = {resource.name:(0.0,0) for resource in tg.resources if resource.data['done']}
+    computer2nextfreetime = [0 for _ in xrange(n_computers)]
+    t_total = 0
+    for job_name in tg.jobs_toposorted():
+        job = tg.get_job(job_name)
+        job_loc = job2loc[job_name]
+        t_startjob = computer2nextfreetime[job_loc]
+        for resource_name in job.inputs:
+            t_resource,i_loc = resource2creationtimeloc[resource_name]
+            t_startjob = max(t_startjob,t_resource + (i_loc != job_loc)*tg.get_resource(resource_name).data["send_dur"] )
+        t_finishjob = t_startjob + job.data["job_dur"]
+        computer2nextfreetime[job_loc] = t_finishjob
+        for resource_name in job.outputs:
+            resource2creationtimeloc[resource_name] = (t_finishjob,job_loc)
+
+        t_total = max(t_total, t_finishjob)
+
+    return t_total
 
 
 
@@ -379,13 +409,18 @@ def test():
     pipeline.set_root("data")
 
     cameras = ['A', 'B', 'C']
-    scenes = range(50)
+    scenes = range(10)
 
     for camera in cameras:
         for scene in scenes:
             input = {'image': "{0}_{1}.jpg".format(camera, scene)}
             output = {'image': "{0}_{1}_processed.jpg".format(camera, scene)}
             pipeline.add_task(ImageProcessor, input, output)
+
+            input=output
+            output={'image': "{0}_{1}_processed2.jpg".format(camera, scene)}
+            pipeline.add_task(ImageProcessor, input, output)
+
 
     input = {}
     input['images'] = []
@@ -404,14 +439,25 @@ def test():
         job.data["job_dur"] = 10.0
 
     for resource in tg.get_resources():
-        resource.data["send_dur"] = 1.0
+        resource.data["send_dur"] = 3.0
 
 
     assert any(resource.data["final"] for resource in tg.get_resources())
     # plan_with_ilp(tg)
     # plan_with_djikstra(tg,2)
-    cost,job2loc = plan_with_hill_climb(tg,3)
-    print cost,job2loc
+    n_computers=3
+    cost_naive,job2loc_naive = compute_cost_naive(tg,n_computers,return_job2loc=True)
+    print "TIME FROM NAIVE PLANNER", cost_naive
+    assert cost_naive == compute_cost_with_assignment(tg, job2loc_naive, n_computers)
+
+    cost_hc,job2loc_hc = plan_with_hill_climb(tg,n_computers)
+    print "TIME FROM HILL-CLIMBING PLANNER",cost_hc
+    assert cost_hc == compute_cost_with_assignment(tg, job2loc_hc, n_computers)
+
+    cost_hc,job2loc_hc = plan_with_hill_climb(tg,n_computers,initialize=job2loc_naive)
+    print "TIME FROM HILL-CLIMBING PLANNER INITIALIZED WITH NAIVE",cost_hc
+    assert cost_hc == compute_cost_with_assignment(tg, job2loc_hc, n_computers)
+
 
 
 if __name__ == "__main__":
