@@ -4,11 +4,14 @@ import itertools
 import multiprocessing as mp
 import Queue
 import inspect
+import subprocess
 
 #import dill as _pickle
 #_pickle.dill._trace(False)
 import cloud.serialization.cloudpickle as _pickle
 import networkx as nx
+
+from master import Master
 
 class FileGroup(dict):
 
@@ -124,8 +127,13 @@ class BinaryTask(Task):
             cmd = "{0} -o {1} {2}"
             cmd = cmd.format(cde_path, cls.package_path, cls.package_command)
 
+        print cmd
         os.system(cmd)
         cls.packaged = True
+
+    def run(self):
+        cmd = "{0}/cde-exec {1} {2}".format(self.package_path, self.executable, self.args())
+        subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)
 
 class Job(object):
 
@@ -174,6 +182,72 @@ def _work(job_queue, result_queue):
             e.traceback = traceback.format_exc()
             result_queue.put((result_id, _pickle.dumps(e)))
 
+class NaiveScheduler(object):
+
+    def __init__(self, graph):
+
+        self.graph = graph
+
+        self.candidate_jobs = {}
+        self.pending_jobs = {}
+        self.completed_jobs = {}
+        self.results = {}
+
+        for job in self.graph.roots():
+            self.candidate_jobs[job.id] = job
+
+    def get_job_for_worker(self, id):
+        for job_id, job in self.candidate_jobs.items():
+            pickled = self.pickle(job)
+            if pickled is not None:
+                self.pending_jobs[job.id] = job
+                del self.candidate_jobs[job.id]
+                return job_id, pickled
+        return None, None
+
+    def pickle(self, job):
+        try:
+            pickled = _pickle.dumps(job)
+            return pickled
+        except Exception as e:
+            self.results[job.id] = e
+            job.failed = True
+            self.completed_jobs[job.id] = job
+            self.fail_downstream(job)
+            return None
+
+    def fail_downstream(self, job):
+        for descendant in self.graph.descendants(job):
+            self.results[descendant.id] = Exception("Failed due to upstream job {0}".format(job.id))
+            descendant.failed = True
+            self.completed_jobs[descendant.id] = descendant
+
+    def work_complete(self, worker_id=None):
+        return len(self.completed_jobs) == len(self.graph)
+
+    def process_completed_job(self, job_id, result):
+        result = _pickle.loads(result)
+        self.results[job_id] = result
+
+        job = self.pending_jobs[job_id]
+        if isinstance(result, Exception):
+            job.failed = True
+        job.done = True
+
+        del self.pending_jobs[job_id]
+        self.completed_jobs[job_id] = job
+
+        for child_job in self.graph.children(job):
+            parents_done = all([j.done for j in self.graph.parents(child_job)])
+
+            if parents_done:
+                self.candidate_jobs[child_job.id] = child_job
+
+
+    def cleanup(self):
+        for worker in self.workers:
+            worker.terminate()
+
 class Scheduler(object):
 
     def __init__(self, graph, num_cores_to_use):
@@ -190,7 +264,7 @@ class Scheduler(object):
         for job in self.graph.roots():
             self.candidate_jobs[job.id] = job
 
-        self.setup_mp()
+        #self.setup_mp()
 
     @property
     def num_cores_available(self):
@@ -330,6 +404,12 @@ class Pipeline(object):
         # Contains both resources and jobs
         self.resource_job_graph = DependencyGraph()
 
+    def add_globals(self, globals):
+        self.globals.update(globals)
+
+    def get_global(self, key):
+        return self.globals[key]
+
     def set_root(self, new_dir):
         filename = inspect.stack()[-1][1]
         script_path = os.path.dirname(os.path.abspath(filename))
@@ -405,13 +485,50 @@ class Pipeline(object):
                 print "-"*80
         return success
 
+    def run_local_tornado(self, port=8888):
+        self.compute_job_graph()
+        scheduler = NaiveScheduler(self.job_graph)
+        master = Master(scheduler, port)
+        success, results = master.run()
+        print success
+        print "here"
+        if not success:
+            failed_jobs = filter(lambda x: x.failed, self.jobs.values())
+            print "-"*80
+            for job in failed_jobs:
+                print "Job failed: {0}".format(job.id)
+                print self.job_spec(job)
+                print "Exception: "
+                print results[job.id]
+                print results[job.id].traceback
+                print "-"*80
+        return success
+
+    def run_remote(self, num_cores_to_use=None):
+        if num_cores_to_use is None:
+            num_cores_to_use = mp.cpu_count()*2
+        self.compute_job_graph()
+        scheduler = Scheduler(self.job_graph, num_cores_to_use)
+        success, results = scheduler.run()
+        if not success:
+            failed_jobs = filter(lambda x: x.failed, self.jobs.values())
+            print "-"*80
+            for job in failed_jobs:
+                print "Job failed: {0}".format(job.id)
+                print self.job_spec(job)
+                print "Exception: "
+                print results[job.id]
+                print results[job.id].traceback
+                print "-"*80
+        return success
+
     def job_spec(self, job):
         inputs = self.resource_job_graph.parents(job)
         outputs = self.resource_job_graph.children(job)
         spec = "Inputs:\n"
         for input in inputs:
-            spec += "\t{0}\n".format(input.filename)
+            spec += "\t{0}\n".format(input)
         spec += "Outputs:\n"
         for output in outputs:
-            spec += "\t{0}\n".format(output.filename)
+            spec += "\t{0}\n".format(output)
         return spec
