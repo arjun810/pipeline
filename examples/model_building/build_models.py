@@ -97,7 +97,7 @@ class CreateCloud(Task):
         sigma_pixels = 10.5
         filtered = cycloud.bilateral_filter(unregistered, window, sigma_depth, sigma_pixels)
 
-        image = imread(self.inpupt['image'])
+        image = imread(self.input['image'])
         registered = cycloud.registerDepthMap(filtered, image, depth_K, rgb_K, H_rgb_from_depth)
 
         cloud = cycloud.registeredDepthMapToPointCloud(registered, image, rgb_K, organized=False)
@@ -143,6 +143,7 @@ class SegmentCloud(BinaryTask):
                            self.output['cloud'],
                            self.input['calibration'],
                            self.params['camera_name'],
+                           self.params['reference_camera'],
                            self.input['reference_pose'],
                            self.input['turntable'],
                            self.params['radius'],
@@ -161,13 +162,17 @@ class MergeClouds(Task):
         import cycloud
         import numpy as np
 
-        reference_camera = pipeline.get_global('reference_camera')
+        reference_camera = self.params['reference_camera']
 
         clouds = {}
         total_points = 0
-        camera_transforms = []
+        camera_transforms = {}
         calibration = h5py.File(self.input['calibration'], "r")
         for camera, cloud_filename in zip(self.params['cameras'], self.input['clouds']):
+            # The file might not exist if the segmented cloud had 0 points.
+            if not os.path.exists(cloud_filename):
+                clouds[camera] = None
+                continue
             clouds[camera] = cycloud.readPCD(cloud_filename)
             total_points += clouds[camera].shape[1]
 
@@ -177,7 +182,9 @@ class MergeClouds(Task):
 
         merged_cloud = np.empty((1, total_points, 6))
         offset = 0
-        for camera in zip(self.params['cameras']):
+        for camera in self.params['cameras']:
+            if clouds[camera] is None:
+                continue
             num_points = clouds[camera].shape[1]
             cycloud.transformCloud(clouds[camera], camera_transforms[camera], inplace=True)
             merged_cloud[:, offset:offset+num_points, :] = clouds[camera]
@@ -197,7 +204,7 @@ class CreateObjectCloud(Task):
         import numpy as np
 
         clouds = {}
-        total_points = 0
+        num_points = 0
         camera_transforms = []
         merged_cloud = np.empty((1, 10000000, 6))
         #calibration = h5py.File(self.input['calibration'], "r")
@@ -220,7 +227,7 @@ class CreateObjectCloud(Task):
             merged_cloud[:, num_points:num_points+points_in_cloud,:] = cloud
             num_points += points_in_cloud
 
-        merged_cloud = merged_clouds[:,:num_points,:]
+        merged_cloud = merged_cloud[:,:num_points,:]
         cycloud.writePCD(merged_cloud, self.output['cloud'])
 
 class PCLVoxelGrid(BinaryTask):
@@ -290,10 +297,11 @@ def add_cloud_creation_tasks(pipeline, set, object, calibration_filename):
                     'filtered_depth_map': depth_map_filename,
                     'image': image_filename}
             output = {'cloud': cloud_filename}
-            pipeline.add_task(CreateCloud, input, output)
+            pipeline.add_task(CreateCloud, input, output, camera=rgbd_camera)
 
 def add_pose_estimation_tasks(pipeline, set, object, calibration_filename):
     reference_camera = pipeline.get_global('reference_camera')
+    light_setting = pipeline.get_global('light_setting')
     base_dir = os.path.join(pipeline.root_dir, set, light_setting, object)
     pose_dir = os.path.join(base_dir, 'poses', 'optimized')
 
@@ -315,6 +323,7 @@ def add_pose_estimation_tasks(pipeline, set, object, calibration_filename):
 
 def add_cloud_segmentation_tasks(pipeline, set, object, calibration_filename):
 
+    light_setting = pipeline.get_global('light_setting')
     reference_camera = pipeline.get_global('reference_camera')
     base_dir = os.path.join(pipeline.root_dir, set, light_setting, object)
     pose_dir = os.path.join(base_dir, 'poses', 'optimized')
@@ -342,6 +351,7 @@ def add_cloud_segmentation_tasks(pipeline, set, object, calibration_filename):
 def add_cloud_merging_tasks(pipeline, set, object, calibration_filename):
 
     reference_camera = pipeline.get_global('reference_camera')
+    light_setting = pipeline.get_global('light_setting')
     base_dir = os.path.join(pipeline.root_dir, set, light_setting, object)
     pose_dir = os.path.join(base_dir, 'poses', 'optimized')
 
@@ -357,10 +367,11 @@ def add_cloud_merging_tasks(pipeline, set, object, calibration_filename):
         output_filename = os.path.join(base_dir, "merged_scenes", "scene_{0}.pcd".format(scene))
         output = {'cloud': output_filename}
 
-        pipeline.add_task(MergeClouds, input, output)
+        pipeline.add_task(MergeClouds, input, output, cameras=pipeline.get_global('rgbd_cameras'))
 
 def add_object_cloud_tasks(pipeline, set, object, calibration_filename):
     reference_camera = pipeline.get_global('reference_camera')
+    light_setting = pipeline.get_global('light_setting')
     base_dir = os.path.join(pipeline.root_dir, set, light_setting, object)
     pose_dir = os.path.join(base_dir, 'poses', 'optimized')
 
@@ -427,14 +438,14 @@ def main(sets, object):
             objects = [object]
 
         for object in objects:
-            #add_chessboard_detection_tasks(pipeline, set, object)
-            #add_corner_undistortion_tasks(pipeline, set, object, calibration_filename)
+            add_chessboard_detection_tasks(pipeline, set, object)
+            add_corner_undistortion_tasks(pipeline, set, object, calibration_filename)
             add_discontinuity_filtering_tasks(pipeline, set, object)
-            add_cloud_creation_tasks(pipeline, set, object)
-            add_pose_estimation_tasks(pipeline, set, object)
+            add_cloud_creation_tasks(pipeline, set, object, calibration_filename)
+            add_pose_estimation_tasks(pipeline, set, object, calibration_filename)
             add_cloud_segmentation_tasks(pipeline, set, object, calibration_filename)
             add_cloud_merging_tasks(pipeline, set, object, calibration_filename)
-            add_object_cloud_tasks(pipeline, set, object)
+            add_object_cloud_tasks(pipeline, set, object, calibration_filename)
             #add_cloud_smoothing_tasks(pipeline, set, object)
             #add_voxelizing_tasks(pipeline, set, object)
             #add_poisson_tasks(pipeline, set, object)
@@ -444,13 +455,74 @@ def main(sets, object):
             #add_mesh_texturing_tasks(pipeline, set, object)
             #add_mask_generation_tasks(pipeline, set, object)
 
-    success = pipeline.run_local_tornado()
+    return pipeline
+    #success = pipeline.run_local_tornado()
+    #success = pipeline.run()
 
+def test(pipeline, n_computers):
+    from ziang.scheduling import *
+
+    objects = [
+        "sharpie_marker",
+        "small_black_spring_clamp",
+        "soft_scrub_2lb_4oz",
+        "spam_12oz",
+        "sponge_with_textured_cover",
+        "stainless_steel_fork_red_handle",
+        "stainless_steel_knife_red_handle",
+        "stainless_steel_spatula",
+        "stainless_steel_spoon_red_handle",
+        "stanley_13oz_hammer",
+        "stanley_flathead_screwdriver",
+        "stanley_philips_screwdriver",
+        "starkist_chunk_light_tuna",
+        "sterilite_bin_12qt_bottom",
+        "sterilite_bin_12qt_cap",
+    ]
+
+    dg=pipeline.resource_job_graph
+    tg = generate_task_graph(dg)
+    assert any(resource.data["final"] for resource in tg.get_resources())
+
+    for job in tg.get_jobs():
+        job.data["job_dur"] = 1.0
+
+    for resource in tg.get_resources():
+        resource.data["send_dur"] = 3.0
+
+    idealjob2loc = {}
+    for job in tg.get_jobs():
+        output = job.outputs[0]
+        if isinstance(output, list):
+            output = output[0]
+        for i, object in enumerate(objects):
+            if object in output:
+                idealjob2loc[job.name] = i % n_computers
+    cost_ideal = compute_cost_with_assignment(tg, idealjob2loc, n_computers)
+    print "TIME FROM HEURISTIC", cost_ideal
+
+    assert any(resource.data["final"] for resource in tg.get_resources())
+    # plan_with_ilp(tg)
+    # plan_with_djikstra(tg,2)
+    cost_naive,job2loc_naive = compute_cost_naive(tg,n_computers,return_job2loc=True)
+    print "TIME FROM NAIVE PLANNER", cost_naive
+    assert cost_naive == compute_cost_with_assignment(tg, job2loc_naive, n_computers)
+
+    print "RUNNING HILL-CLIMBING PLANNER INITIALIZED FROM IDEAL"
+    cost_hc,job2loc_hc = plan_with_hill_climb(tg,n_computers,initialize=idealjob2loc)
+    print "TIME FROM HILL-CLIMBING PLANNER INITIALIZED WITH IDEAL",cost_hc
+    assert cost_hc == compute_cost_with_assignment(tg, job2loc_hc, n_computers)
+
+    print "RUNNING HILL-CLIMBING PLANNER INITIALIZED FROM NAIVE PLANNER"
+    cost_hc,job2loc_hc = plan_with_hill_climb(tg,n_computers,initialize=job2loc_naive)
+    print "TIME FROM HILL-CLIMBING PLANNER INITIALIZED WITH NAIVE",cost_hc
+    assert cost_hc == compute_cost_with_assignment(tg, job2loc_hc, n_computers)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--set", default=None)
     parser.add_argument("--object", default="all")
+    parser.add_argument("--n_computers", default=10)
     args = parser.parse_args()
 
     sets = []
@@ -469,4 +541,5 @@ if __name__ == "__main__":
     print "Running on objects: "
     print args.object
 
-    main(sets, args.object)
+    pipeline = main(sets, args.object)
+    test(pipeline, int(args.n_computers))

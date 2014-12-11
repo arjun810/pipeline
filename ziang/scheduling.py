@@ -1,6 +1,6 @@
 import networkx as nx
 
-class Job(object):    
+class Job(object):
     def __init__(self,name,inputs,outputs,data):
         assert isinstance(name,str) and isinstance(inputs,list) and isinstance(outputs,list) and isinstance(data,dict)
         self.name = name
@@ -36,7 +36,7 @@ class TaskHypergraph(object):
 
     def get_jobs(self):
         return self.jobs
-    
+
     def add_job(self,job):
         assert isinstance(job,Job)
         self.jobs.append(job)
@@ -112,7 +112,7 @@ class ClusterScheduler(object):
         # What job was that worker doing (possibly None)
         job_id = self.get_current_job(worker_id)
         # Mark it as done
-        if job_id is not None: 
+        if job_id is not None:
             self.mark_as_done(job_id)
         # Is there a new job ready for him?
         new_job_id = self.find_job(worker_id)
@@ -127,14 +127,14 @@ class ClusterScheduler(object):
         worker_id = self.job2worker[job_id]
         del self.worker2job[worker_id]
         del self.job2worker[job_id]
-    
+
     def mark_as_assigned(self, job_id, worker_id):
         self.job2worker[job_id] = worker_id
         self.worker2job[worker_id] = job_id
 
     def find_job(self,worker_id):
         """
-        See if worker is assigned to task that is on the frontier of active task graph (self.active).        
+        See if worker is assigned to task that is on the frontier of active task graph (self.active).
         """
         assert self.plan_is_ready()
         for resource in get_frontier_jobs(self.active):
@@ -171,12 +171,12 @@ def djikstra(state_initial, is_goal, get_actions, successor, compute_score, comp
         if is_goal(state):
             return state
         else:
-            for action in get_actions(state):                
+            for action in get_actions(state):
                 next_state = successor(state,action)
                 if next_state is not None:
                     if compute_hash is not None:
                         h = compute_hash(next_state)
-                        if h in closed: 
+                        if h in closed:
                             continue
                         else:
                             closed.add(h)
@@ -262,14 +262,14 @@ def plan_with_djikstra(tg,n_computers):
             new_comp_ready_time[fro] = new_comp_ready_time[to] = start_time + send_dur(action.res)
             new_last_time = start_time
 
-        new_actions = state.actions + [action]            
+        new_actions = state.actions + [action]
         return State(new_resources, new_job_done, new_comp_ready_time, new_last_time, new_actions)
 
 
     def compute_score(state):
         comp_lb = sum( job.data['dur'] for (jobidx,job) in enumerate(tg.jobs) if not state.job_done[jobidx] )
         comm_lb = 0
-        lb = (comp_lb+comm_lb) / n_computers        
+        lb = (comp_lb+comm_lb) / n_computers
         return state.last_time + lb*1.2
 
     state_initial = State([set() for _ in xrange(n_computers)], np.zeros(n_jobs,dtype=bool), np.zeros(n_computers,dtype='float32'), 0, []) #pylint: disable=E1101
@@ -296,7 +296,7 @@ def hill_climb(initial_soln,compute_move,compute_cost,n_trials):
     current_cost = compute_cost(initial_soln)
     current_soln = initial_soln
     for i_trial in xrange(n_trials):
-        if i_trial % 1000 == 0:
+        if i_trial % 100 == 0:
             print "trial %i cost %f"%(i_trial,current_cost)
         candidate_soln = compute_move(current_soln)
         candidate_cost = compute_cost(candidate_soln)
@@ -306,7 +306,7 @@ def hill_climb(initial_soln,compute_move,compute_cost,n_trials):
     return current_cost, current_soln
 
 import random
-def plan_with_hill_climb(tg,n_computers,n_trials=5000,initialize=None):
+def plan_with_hill_climb(tg,n_computers,n_trials=3000,initialize=None):
     """
     Compute an assignment of tasks to computers with a hill combing algorithm
     """
@@ -335,7 +335,7 @@ def compute_cost_naive(tg, n_computers,return_job2loc=False):
     """
     Compute cost of naive controller ignoring bandwidth limits and NOT doing concurrent computation & download
     """
-    resource2creationtimeloc = {resource.name:(0.0,0) for resource in tg.resources if resource.data['done']}    
+    resource2creationtimeloc = {resource.name:(0.0,0) for resource in tg.resources if resource.data['done']}
     computer_queue = PriorityQueue()
     job2loc = {}
     t_total=0
@@ -428,7 +428,7 @@ def test():
         for scene in scenes:
             input['images'].append("{0}_{1}_processed.jpg".format(camera, scene))
     output = {'summary': "summary.txt"}
-    pipeline.add_task(ImageSummarizer, input, output)    
+    pipeline.add_task(ImageSummarizer, input, output)
 
     dg=pipeline.resource_job_graph
     tg = generate_task_graph(dg)
@@ -445,19 +445,19 @@ def test():
     assert any(resource.data["final"] for resource in tg.get_resources())
     # plan_with_ilp(tg)
     # plan_with_djikstra(tg,2)
-    n_computers=3
+    n_computers=15
     cost_naive,job2loc_naive = compute_cost_naive(tg,n_computers,return_job2loc=True)
     print "TIME FROM NAIVE PLANNER", cost_naive
     assert cost_naive == compute_cost_with_assignment(tg, job2loc_naive, n_computers)
 
-    print "RUNNING HILL-CLIMBING PLANNER"
-    cost_hc,job2loc_hc = plan_with_hill_climb(tg,n_computers)
-    print "TIME FROM HILL-CLIMBING PLANNER",cost_hc
-    assert cost_hc == compute_cost_with_assignment(tg, job2loc_hc, n_computers)
-
     print "RUNNING HILL-CLIMBING PLANNER INITIALIZED FROM NAIVE PLANNER"
     cost_hc,job2loc_hc = plan_with_hill_climb(tg,n_computers,initialize=job2loc_naive)
     print "TIME FROM HILL-CLIMBING PLANNER INITIALIZED WITH NAIVE",cost_hc
+    assert cost_hc == compute_cost_with_assignment(tg, job2loc_hc, n_computers)
+
+    print "RUNNING HILL-CLIMBING PLANNER"
+    cost_hc,job2loc_hc = plan_with_hill_climb(tg,n_computers)
+    print "TIME FROM HILL-CLIMBING PLANNER",cost_hc
     assert cost_hc == compute_cost_with_assignment(tg, job2loc_hc, n_computers)
 
 

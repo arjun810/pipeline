@@ -48,7 +48,6 @@ class Master(object):
 
     def check_pipeline_status(self):
         if self.scheduler.work_complete():
-            print "stopping"
             tornado.ioloop.IOLoop.instance().stop()
 
     def run(self):
@@ -58,9 +57,7 @@ class Master(object):
         application.listen(self.port)
         cb = tornado.ioloop.PeriodicCallback(self.check_pipeline_status, 500)
         cb.start()
-        print "in run"
         tornado.ioloop.IOLoop.instance().start()
-        print "after start"
         jobs = self.scheduler.completed_jobs.values()
         return all([not job.failed for job in jobs]), self.scheduler.results
 

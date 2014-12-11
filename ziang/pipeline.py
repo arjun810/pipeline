@@ -97,10 +97,15 @@ class Task(object):
                 raise ValueError("Output type {0} not supported".format(output_type))
 
     def _run(self):
-        for output_filename in self.output.values():
-            output_path = os.path.dirname(output_filename)
-            if not os.path.exists(output_path):
-                os.makedirs(output_path)
+        for output in self.output.values():
+            if isinstance(output, FileList):
+                output_filenames = output
+            else:
+                output_filenames = [output]
+            for output_filename in output_filenames:
+                output_path = os.path.dirname(output_filename)
+                if not os.path.exists(output_path):
+                    os.makedirs(output_path)
 
         self.run()
 
@@ -133,7 +138,8 @@ class BinaryTask(Task):
             cmd = cmd.format(cde_path, cls.package_path, cls.package_command)
 
         print cmd
-        os.system(cmd)
+        FNULL = open(os.devnull, 'w')
+        subprocess.call(cmd, stdout=FNULL, shell=True)
         cls.packaged = True
 
     def run(self):
@@ -235,6 +241,7 @@ class NaiveScheduler(object):
         self.results[job_id] = result
 
         job = self.pending_jobs[job_id]
+        print job.task.output
         if isinstance(result, Exception):
             job.failed = True
         job.done = True
@@ -269,7 +276,7 @@ class Scheduler(object):
         for job in self.graph.roots():
             self.candidate_jobs[job.id] = job
 
-        #self.setup_mp()
+        self.setup_mp()
 
     @property
     def num_cores_available(self):
