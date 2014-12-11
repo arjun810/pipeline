@@ -97,6 +97,11 @@ class Task(object):
                 raise ValueError("Output type {0} not supported".format(output_type))
 
     def _run(self):
+        for output_filename in self.output.values():
+            output_path = os.path.dirname(output_filename)
+            if not os.path.exists(output_path):
+                os.makedirs(output_path)
+
         self.run()
 
     def run(self):
