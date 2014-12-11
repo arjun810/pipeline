@@ -456,7 +456,7 @@ def main(sets, object):
             #add_mask_generation_tasks(pipeline, set, object)
 
     return pipeline
-    #success = pipeline.run_local_tornado()
+    success = pipeline.run_local_tornado()
     #success = pipeline.run()
 
 def test(pipeline, n_computers):
@@ -542,4 +542,4 @@ if __name__ == "__main__":
     print args.object
 
     pipeline = main(sets, args.object)
-    test(pipeline, int(args.n_computers))
+    #test(pipeline, int(args.n_computers))
