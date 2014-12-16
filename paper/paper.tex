@@ -1,0 +1,134 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%2345678901234567890123456789012345678901234567890123456789012345678901234567890
+%        1         2         3         4         5         6         7         8
+
+\documentclass[letterpaper, 10 pt, conference]{ieeeconf}  % Comment this line out if you need a4paper
+
+%\documentclass[a4paper, 10pt, conference]{ieeeconf}      % Use this line for a4 paper
+
+\IEEEoverridecommandlockouts                              % This command is only needed if 
+                                                          % you want to use the \thanks command
+
+\overrideIEEEmargins                                      % Needed to meet printer requirements.
+
+% See the \addtolength command later in the file to balance the column lengths
+% on the last page of the document
+
+% The following packages can be found on http:\\www.ctan.org
+%\usepackage{graphics} % for pdf, bitmapped graphics files
+%\usepackage{epsfig} % for postscript graphics files
+%\usepackage{mathptmx} % assumes new font selection scheme installed
+%\usepackage{times} % assumes new font selection scheme installed
+%\usepackage{amssymb}  % assumes amsmath package installed
+%\usepackage{multirow}
+\usepackage{color,colortbl}
+\usepackage{graphicx}
+\usepackage{amsmath} % assumes amsmath package installed
+\usepackage{subfigure}
+%\usepackage{epsfig}
+\usepackage{url}
+%\usepackage[linesnumbered,ruled,vlined]{algorithm2e}
+
+\newcommand{\etal}{et~al. }
+\newcommand{\Kir}{K_{\text{IR}}}
+\newcommand{\Krgb}{K_{\text{RGB}}}
+\newcommand{\xir}{x_{\text{IR}}}
+\newcommand{\xrgb}{x_{\text{RGB}}}
+\newcommand{\Kdepth}{K_{\text{Depth}}}
+\begin{document}
+
+\title{\LARGE \bf
+    Task Pipeline Specification and Scheduling
+}
+
+\author{John Schulman and Arjun Singh}
+
+\maketitle
+%\thispagestyle{empty}
+%\pagestyle{empty}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%\begin{abstract}
+%
+%In the past few years, significant progress has been made on the problem of
+%instance recognition, in which a vision system must estimate the identity and
+%pose of an object from a database of object instances. However, for many
+%robotics purposes, such a system needs to be nearly perfect to work in the real
+%world.  The state of the art in computer vision has rapidly advanced over the
+%past decade largely due to the advent of fundamental image datasets such as
+%MNIST, Caltech-101, PASCAL, and ImageNet.  However, these datasets are usually
+%geared towards image retrieval tasks, as they often contain assorted collections
+%of images from the web that do not enable pose recovery.  Furthermore, they do
+%not examine what can actually be solved today by computer vision for robotic
+%perception.  To address these issues, we present a high-quality,
+%large-scale dataset of 3D object instances, with accurate calibration
+%information for every image. We anticipate that ``solving'' this dataset will
+%effectively remove many perception-related problems for mobile, sensing-based
+%robots.
+%
+%While there exist several 3D datasets (e.g. Willow Garage, NYU V2,
+%RGB-D Object Dataset, B3DO), they either only contain contain a small
+%number of moderate-quality object models and/or scenes, lack some of the
+%information a robot might have (such as calibration), or lack instance-level
+%data.  We present four contributions: (1) a dataset of 100 objects (and
+%growing), composed of 600 3D point clouds and 600 high-resolution (12 MP)
+%images spanning all views of each object, (2) a bundle adjustment method for
+%calibrating a multi-sensor system, (3) details of our data collection system,
+%which collects all required data for a single object in under 6 minutes with
+%minimal human effort, and (4) multiple software components, used to automate
+%multi-sensor calibration and simplify the data collection process.
+%
+%\end{abstract}
+\begin{abstract}
+    Stuff
+\end{abstract}
+
+\section{Introduction}
+% TODO John -- partial
+
+\section{Related Work}
+% TODO John
+
+\section{Overview}
+\section{Implementation}
+\subsection{Task Specification}
+\subsection{Pipeline Structure}
+% TODO John -- partial
+
+\subsection{Parallelization}
+
+\subsection{Scheduling}
+% TODO John
+
+\section{Results}
+% TODO John -- partial
+
+\section{Conclusions}
+
+
+%\addtolength{\textheight}{-1cm}  % This command serves to balance the column lengths
+%                                  % on the last page of the document manually. It shortens
+%                                  % the textheight of the last page by a suitable amount.
+%                                  % This command does not take effect until the next page
+%                                  % so it should come on the page before the last. Make
+%                                  % sure that you do not shorten the textheight too much.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\bibliography{references}
+\bibliographystyle{unsrt}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\end{document}

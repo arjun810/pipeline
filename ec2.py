@@ -16,11 +16,14 @@ bdm['/dev/sda1'] = dev_sda1
 pipeline_instances = conn.get_only_instances(filters={'tag:project':['pipeline']})
 if len(pipeline_instances) > 0:
     print "Already have {0} instances".format(len(pipeline_instances))
+    for instance in pipeline_instances:
+        print instance.public_dns_name
     sys.exit()
 
 reservation = conn.run_instances(
                 ami,
-                min_count=1,
+                min_count=4,
+                max_count=4,
                 key_name='pipeline',
                 instance_type='c3.2xlarge',
                 security_groups=['pipeline'],

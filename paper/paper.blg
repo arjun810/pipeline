@@ -1,0 +1,91 @@
+This is BibTeX, Version 0.99d (TeX Live 2013)
+Capacity: max_strings=35307, hash_size=35307, hash_prime=30011
+The top-level auxiliary file: paper.aux
+The style file: unsrt.bst
+Database file #1: references.bib
+Warning--entry type for "sip" isn't style-file defined
+--line 61 of file references.bib
+Warning--entry type for "mnist" isn't style-file defined
+--line 77 of file references.bib
+I was expecting a `,' or a `)'---line 87 of file references.bib
+ : 
+ : }
+(Error may have been on previous line)
+I'm skipping whatever remains of this entry
+Warning--string name "pami" is undefined
+--line 387 of file references.bib
+Warning--entry type for "ceres-solver" isn't style-file defined
+--line 481 of file references.bib
+Warning--entry type for "kinecttech" isn't style-file defined
+--line 613 of file references.bib
+Warning--string name "sept" is undefined
+--line 619 of file references.bib
+Warning--entry type for "rgbdtoolkit" isn't style-file defined
+--line 629 of file references.bib
+Warning--string name "sept" is undefined
+--line 635 of file references.bib
+Warning--empty institution in lfw
+Warning--empty booktitle in janoch2011iccv
+Warning--empty journal in cremers2011pami
+Warning--empty journal in Collet2011
+Too many commas in name 1 of "Whelan, T., Kaess, M., Fallon, M. F., Johannsson, H., Leonard, J. J., McDonald, J. B." for entry whelan2012rssw
+while executing---line 944 of file unsrt.bst
+Too many commas in name 1 of "Whelan, T., Kaess, M., Fallon, M. F., Johannsson, H., Leonard, J. J., McDonald, J. B." for entry whelan2012rssw
+while executing---line 944 of file unsrt.bst
+Too many commas in name 1 of "Whelan, T., Kaess, M., Fallon, M. F., Johannsson, H., Leonard, J. J., McDonald, J. B." for entry whelan2012rssw
+while executing---line 944 of file unsrt.bst
+Too many commas in name 1 of "Whelan, T., Kaess, M., Fallon, M. F., Johannsson, H., Leonard, J. J., McDonald, J. B." for entry whelan2012rssw
+while executing---line 944 of file unsrt.bst
+Too many commas in name 1 of "Whelan, T., Kaess, M., Fallon, M. F., Johannsson, H., Leonard, J. J., McDonald, J. B." for entry whelan2012rssw
+while executing---line 944 of file unsrt.bst
+Too many commas in name 1 of "Whelan, T., Kaess, M., Fallon, M. F., Johannsson, H., Leonard, J. J., McDonald, J. B." for entry whelan2012rssw
+while executing---line 944 of file unsrt.bst
+Too many commas in name 1 of "Whelan, T., Kaess, M., Fallon, M. F., Johannsson, H., Leonard, J. J., McDonald, J. B." for entry whelan2012rssw
+while executing---line 944 of file unsrt.bst
+Too many commas in name 1 of "Whelan, T., Kaess, M., Fallon, M. F., Johannsson, H., Leonard, J. J., McDonald, J. B." for entry whelan2012rssw
+while executing---line 944 of file unsrt.bst
+Too many commas in name 1 of "Whelan, T., Kaess, M., Fallon, M. F., Johannsson, H., Leonard, J. J., McDonald, J. B." for entry whelan2012rssw
+while executing---line 944 of file unsrt.bst
+Warning--empty journal in whelan2012robust
+You've used 38 entries,
+            1791 wiz_defined-function locations,
+            614 strings with 9234 characters,
+and the built_in function-call counts, 7840 in all, are:
+= -- 538
+> -- 499
+< -- 2
++ -- 180
+- -- 142
+* -- 452
+:= -- 1274
+add.period$ -- 111
+call.type$ -- 38
+change.case$ -- 39
+chr.to.int$ -- 0
+cite$ -- 43
+duplicate$ -- 399
+empty$ -- 863
+format.name$ -- 142
+if$ -- 1762
+int.to.chr$ -- 0
+int.to.str$ -- 38
+missing$ -- 32
+newline$ -- 188
+num.names$ -- 38
+pop$ -- 215
+preamble$ -- 1
+purify$ -- 0
+quote$ -- 0
+skip$ -- 146
+stack$ -- 0
+substring$ -- 150
+swap$ -- 70
+text.length$ -- 2
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 0
+warning$ -- 5
+while$ -- 52
+width$ -- 40
+write$ -- 379
+(There were 10 error messages)

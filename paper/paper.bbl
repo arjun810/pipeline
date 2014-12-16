@@ -1,0 +1,211 @@
+\begin{thebibliography}{10}
+
+\bibitem{xie2013iros}
+Ziang Xie, Arjun Singh, Justin Uang, Karthik~S. Narayan, and Pieter Abbeel.
+\newblock Multimodal blending for high-accuracy instance recognition.
+\newblock In {\em IROS}, 2013.
+
+\bibitem{tang2012icra}
+J.~Tang, S.~Miller, A.~Singh, and P.~Abbeel.
+\newblock A textured object recognition pipeline for color and depth image
+  data.
+\newblock In {\em ICRA}, 2012.
+
+\bibitem{vaskevicius2012icra}
+N.~Vaskevicius, K.~Pathak, A.~Ichim, and A.~Birk.
+\newblock The jacobs robotics approach to object recognition and localization
+  in the context of the icra'11 solutions in perception challenge.
+\newblock In {\em ICRA}, 2012.
+
+\bibitem{mnist}
+Y.~LeCun, C.~Cortes, and C.~J.~C. Burges.
+\newblock The mnist database, 1998.
+
+\bibitem{caltech-101}
+Li~Fei-Fei, Rob Fergus, and Pietro Perona.
+\newblock Learning generative visual models from few training examples: An
+  incremental bayesian approach tested on 101 object categories.
+\newblock {\em Comput. Vis. Image Underst.}, 106(1):59--70, 2007.
+
+\bibitem{everingham2010ijcv}
+M.~Everingham, L.~Van~Gool, C.~K.~I. Williams, J.~Winn, and A.~Zisserman.
+\newblock The pascal visual object classes (voc) challenge.
+\newblock {\em International Journal of Computer Vision}, 88(2):303--338, 2010.
+
+\bibitem{lfw}
+Gary~B. Huang, Manu Ramesh, Tamara Berg, and Erik Learned-Miller.
+\newblock Labeled faces in the wild: A database for studying face recognition
+  in unconstrained environments.
+\newblock Technical report, 2007.
+
+\bibitem{deng2009cvpr}
+J.~Deng, W.~Dong, R.~Socher, L.-J. Li, K.~Li, and L.~Fei-Fei.
+\newblock {ImageNet: A Large-Scale Hierarchical Image Database}.
+\newblock In {\em CVPR09}, 2009.
+
+\bibitem{dalal2005iccv}
+N.~Dalal and B.~Triggs.
+\newblock Histograms of oriented gradients for human detection.
+\newblock In {\em ICCV}, 2005.
+
+\bibitem{sip}
+Willow Garage.
+\newblock Solutions in perception challenge, May 2011.
+
+\bibitem{janoch2011iccv}
+A.~Janoch, S.~Karayev, Y.~Jia, J.~T. Barron, M.~Fritz, K.~Saenko, and
+  T.~Darrell.
+\newblock A category-level 3-d object dataset: Putting the kinect to work.
+\newblock 2011.
+
+\bibitem{lai2011icra}
+K.~Lai, L.~Bo, X.~Ren, and D.~Fox.
+\newblock A large-scale hierarchical multi-view rgb-d object dataset.
+\newblock In {\em ICRA}, 2011.
+
+\bibitem{silberman2012eccv}
+N.~Silberman, D.~Hoiem, P.~Kohli, and R.~Fergus.
+\newblock Indoor segmentation and support inference from rgbd images.
+\newblock In {\em ECCV}, 2012.
+
+\bibitem{sturm2012iros}
+J.~Sturm, J.~Engelhard, F.~Endres, W.~Burgard, and D.~Cremers.
+\newblock A benchmark for the evaluation of rgb-d slam systems.
+\newblock In {\em IROS}, 2012.
+
+\bibitem{cremers2011pami}
+D.~Cremers and K.~Kolev.
+\newblock Multiview stereo and silhouette consistency via convex functionals
+  over convex domains.
+\newblock 33, 2011.
+
+\bibitem{furukawa2010pami}
+Y.~Furukawa and J.~Ponce.
+\newblock Accurate, dense, and robust multi-view stereopsis.
+\newblock {\em PAMI}, 32(8), 2010.
+
+\bibitem{furukawa2010cvpr}
+Y.~Furukawa, B.~Curless, S.~M. Seitz, and R.~Szeliski.
+\newblock Towards internet-scale multi-view stereo.
+\newblock In {\em CVPR}, 2010.
+
+\bibitem{guillemaut2011ijcv}
+J.~Guillemaut and A.~Hilton.
+\newblock Joint multi-layer segmentation and reconstruction for free-viewpoint
+  video applications.
+\newblock {\em Int. J. Comput. Vision}, 93(1):73--100, 2011.
+
+\bibitem{Collet2011}
+Alvaro Collet, Manuel Martinez, and Siddhartha~S. Srinivasa.
+\newblock {The MOPED framework: Object Recognition and Pose Estimation for
+  Manipulation}.
+\newblock 2011.
+
+\bibitem{kasper2012kit}
+Alexander Kasper, Zhixing Xue, and R{\"u}diger Dillmann.
+\newblock The kit object models database: An object model database for object
+  recognition, localization and manipulation in service robotics.
+\newblock {\em The International Journal of Robotics Research}, 31(8):927--934,
+  2012.
+
+\bibitem{izadi2011uist}
+S.~Izadi, D.~Kim, O.~Hilliges, D.~Molyneaux, R.~Newcombe, P.~Kohli, J.~Shotton,
+  S.~Hodges, D.~Freeman, A.~Davison, and A.~Fitzgibbon.
+\newblock Kinectfusion: real-time 3d reconstruction and interaction using a
+  moving depth camera.
+\newblock In {\em UIST}, 2011.
+
+\bibitem{newcombe2011ismar}
+R.~Newcombe, S.~Izadi, O.~Hilliges, D.~Molyneaux, D.~Kim, A.~Davison, P.~Kohli,
+  J.~Shotton, S.~Hodges, and A.~Fitzgibbon.
+\newblock Kinectfusion: Real-time dense surface mapping and tracking.
+\newblock In {\em ISMAR}, 2011.
+
+\bibitem{whelan2012rssw}
+Kaess M. Fallon M. F. Johannsson H. Leonard J. J. McDonald J.~B. Whelan, T.
+\newblock Kintinuous: Spatially extended kinectfusion.
+\newblock In {\em RSS Workshop on RGB-D: Advanced Reasoning with Depth
+  Cameras}, 2012.
+
+\bibitem{zhou2013iccv}
+Q.~Zhou, S.~Miller, and V.~Koltun.
+\newblock Elastic fragments for dense scene reconstruction.
+\newblock In {\em ICCV}, 2013.
+
+\bibitem{herrera2011caip}
+C.~D. Herrera, J.~Kannala, and J.~Heikkil\"{a}.
+\newblock Accurate and practical calibration of a depth and color camera pair.
+\newblock In {\em CAIP}, 2011.
+
+\bibitem{zhang2011icme}
+C.~Zhang and Z.~Zhang.
+\newblock Calibration between depth and color sensors for commodity depth
+  cameras.
+\newblock In {\em ICME}, 2011.
+
+\bibitem{geiger2012icra}
+A.~Geiger, F.~Moosmann, O.~Car, and B.~Schuster.
+\newblock A toolbox for automatic calibration of range and camera sensors using
+  a single shot.
+\newblock In {\em ICRA}, 2012.
+
+\bibitem{zhang1999iccv}
+Z.~Zhang.
+\newblock Flexible camera calibration by viewing a plane from unknown
+  orientations.
+\newblock In {\em ICCV}, 1999.
+
+\bibitem{le2009iros}
+Q.~V. Le and A.~Y. Ng.
+\newblock Joint calibration of multiple sensors.
+\newblock In {\em IROS}, 2009.
+
+\bibitem{smisek20133d}
+Jan Smisek, Michal Jancosek, and Tomas Pajdla.
+\newblock 3d with kinect.
+\newblock In {\em Consumer Depth Cameras for Computer Vision}, pages 3--25.
+  Springer, 2013.
+
+\bibitem{Warren2013}
+Michael Warren, David McKinnon, and Ben Upcroft.
+\newblock {Online Calibration of Stereo Rigs for Long-Term Autonomy}.
+\newblock In {\em International Conference on Robotics and Automation (ICRA)},
+  Karlsruhe, 2013.
+
+\bibitem{butler2012shake}
+D~Alex Butler, Shahram Izadi, Otmar Hilliges, David Molyneaux, Steve Hodges,
+  and David Kim.
+\newblock Shake'n'sense: reducing interference for overlapping structured light
+  depth cameras.
+\newblock In {\em Proceedings of the 2012 ACM annual conference on Human
+  Factors in Computing Systems}, pages 1933--1936. ACM, 2012.
+
+\bibitem{rgbdtoolkit}
+James George, Alexander Porter, Jonathan Minard, and Mike Heavers.
+\newblock Rgbd toolkit, 2013.
+
+\bibitem{ceres-solver}
+Sameer Agarwal, Keir Mierle, and Others.
+\newblock Ceres solver.
+
+\bibitem{kinecttech}
+K.~Konolige and P.~Mihelich.
+\newblock Technical description of kinect calibration, 2013.
+
+\bibitem{kazhdan2006sgp}
+M.~Kazhdan, M.~Bolitho, and H.~Hoppe.
+\newblock Poisson surface reconstruction.
+\newblock In {\em SGP}, 2006.
+
+\bibitem{meshlab}
+P.~Cignoni, M.~Corsini, and G.~Ranzuglia.
+\newblock Meshlab: an open-source 3d mesh processing system.
+\newblock {\em ERCIM News}, 2008(73), 2008.
+
+\bibitem{whelan2012robust}
+Thomas Whelan, Hordur Johannsson, Michael Kaess, John~J Leonard, and John
+  McDonald.
+\newblock Robust tracking for real-time dense rgb-d mapping with kintinuous.
+\newblock 2012.
+
+\end{thebibliography}
