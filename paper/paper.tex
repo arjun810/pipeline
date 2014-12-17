@@ -23,10 +23,12 @@
 %\usepackage{multirow}
 \usepackage{color,colortbl}
 \usepackage{graphicx}
-\usepackage{amsmath} % assumes amsmath package installed
+\usepackage{amsmath,amssymb} % assumes amsmath package installed
+\usepackage{algpseudocode}
 \usepackage{subfigure}
 %\usepackage{epsfig}
 \usepackage{url}
+\usepackage{cleveref}
 %\usepackage[linesnumbered,ruled,vlined]{algorithm2e}
 
 \newcommand{\etal}{et~al. }
@@ -35,6 +37,16 @@
 \newcommand{\xir}{x_{\text{IR}}}
 \newcommand{\xrgb}{x_{\text{RGB}}}
 \newcommand{\Kdepth}{K_{\text{Depth}}}
+\newcommand{\ba}{\mathbf{a}}
+\newcommand{\ncomp}{N_{\mathrm{computers}}}
+\newcommand{\njobs}{N_{\mathrm{jobs}}}
+\newcommand{\atrial}{\ba_{\mathrm{trial}}}
+\newcommand{\abest}{\ba_{\mathrm{best}}}
+\newcommand{\ttrial}{t_{\mathrm{trial}}}
+\newcommand{\tbest}{t_{\mathrm{best}}}
+\newcommand{\itrial}{i_{\mathrm{trial}}}
+\newcommand{\ntrials}{N_{\mathrm{trials}}}
+
 \begin{document}
 
 \title{\LARGE \bf
@@ -85,10 +97,21 @@
 \end{abstract}
 
 \section{Introduction}
-% TODO John -- partial
+We 
 
 \section{Related Work}
-% TODO John
+Several other software packages have been created for the purpose of specifying dependency graphs of computational tasks and executing them in parallel.
+Ruffus is a python library for specifying a computational pipeline \cite{goodstadt2010ruffus}.
+It uses decorators to specify dependencies between these tasks.
+Ruffus does not handle multi-computer parallelism.
+Compmake \cite{censicompmake} is a new python-based tool that has make-like capabilities but enables parallel multi-computer execution of code.
+One limitation of CompMake is TODO.
+
+Optimal scheduling problems have been considered for a long time in the operations research community.
+The problem we address here is most similar to \textit{job shop scheduling} \cite{yamada1997job}, whose formulation is that a set of identical machines must perform a set of tasks as fast as possible.
+Some fast, special-purpose methods have been developed for this problem.
+The communication aspect of our planning problem is not consider in job-shop scheduling, and it renders the special-purpose solution methods unusuable.
+
 
 \section{Overview}
 \section{Implementation}
@@ -98,8 +121,75 @@
 
 \subsection{Parallelization}
 
-\subsection{Scheduling}
-% TODO John
+\section{Scheduling} \label{sec:scheduling}
+
+\subsection{Problem Specification}
+
+Given a set of tasks to perform, and a set of available computers, we would like to devise a plan of how to distribute the computation so as to minimize the time to completion.
+The communication constraints present in this problem make it different from other scheduling problems that have been considered.
+The computational operations produce large data files, so it is prudent to avoid transfering these files when possible because of the transfer time.
+In particular, there are three limited resources of each computer: computation rate (i.e., number of CPUs), download bandwidth, and upload bandwidth.
+A given computer can begin downloading a file that it needs for a future task while it is performing a previous task. 
+In this section we formally define the scheduling problem and then propose an algorithm based on simulated annealing for optimizing the allocation of tasks to computers.
+
+The inputs to the algorithm are the following:
+\begin{itemize}
+	\item Dependency graph, with a set of jobs, each of which has a set of inputs and outputs (inputs and outputs are typically files)
+	\item Number of machines available for computation
+	\item Specification of how long each computation and transport takes
+\end{itemize}
+The output is a set of tuples specifying computation and transport events.
+\begin{itemize}
+	\item Computation event: (job, location, start time, finish time)
+	\item Transport event: (from loc., to loc., start time, finish time)
+\end{itemize}
+Tuples obey the following constraints:
+\begin{itemize}
+	\item A resource is only used after it arrives at a location
+	\item Computation and bandwidth limits are respected by these intervals (k concurrent jobs per computer, only one upload and download at a time \footnote{This constraint can be relaxed at execution time, but makes planning and  simulation simpler})
+	\item Final resources arrive at the master computer.
+\end{itemize}
+
+
+
+\subsection{Overview of Schduling Algorithm}
+
+
+Our key simplifying assumption is as follows: given an assignment of jobs to computers, a near-optimal plan can be computed using a \textit{greedy controller}.
+The greedy controller is defined to be a simple scheme for generating full plan (timing and ordering of events) given an assignment of jobs to computers
+This controller can be straightforwardly be executed in real time, providing workers with jobs in response to completion messages.
+
+
+Given this assumption, the planning problem is reduced to the problem of assigning jobs to computers. 
+The timing and ordering of these jobs will be determined by the greedy controller.
+As we will describe below, the planning algorithm we use is hill-climbing search on the assignment vector.
+
+The greedy controller is defined as follows.
+Whenever a job or transport event finishes, check to see if any new computation or transport events can be started
+Computation: If all of the prerequisites for a job are present on a computer, start that job.
+Transport: If a future job requires a resource but that resource is created on a different computer, AND the source and target computer are free to send and receive, respectively, start transporting that resource.
+Can perform this check efficiently by only looking at frontier of computation graph
+
+\subsection{Hill-Climbing Algorithm}
+
+Hill-climbing (along with simulated annealing and related methods) is often used in planning problems that don't have the right structure to enable efficient exact solution methods \cite{glover2003handbook}. The below we how we hill-climbing search in the task we consider---scheduling computational tasks across a network.
+
+Let $\ba$ denote an assignment vector of length $\njobs$, $a_i \in \{1,2,...,\ncomp\}$
+Let $\operatorname{TotalTaskTime}(\ba)$ be the total task completion time that computed by simulating the greedy controller.
+The algorithm is as follows:
+\begin{algorithmic}
+\State $\abest \gets [1, 1, \dots]$
+\State $t_{\mathrm{best}} = \operatorname{TotalTaskTime}(\abest)$.
+\For{$\itrial \gets 1,2,\dots,\ntrials$}
+\State $\ba_{\mathrm{trial}} = \operatorname{copy}(\ba_{\mathrm{best}})$
+\State Pick random element of $\atrial$, and set it to a random value.
+\State Simulate executing greedy policy on $\atrial$, and compute total task time $\ttrial$.
+\If{$\ttrial < \tbest$} 
+	update $\tbest \gets \ttrial, \abest \gets \atrial$
+\EndIf
+\EndFor
+\end{algorithmic}
+
 
 \section{Results}
 % TODO John -- partial
@@ -126,7 +216,7 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\bibliography{references}
+\bibliography{references.bib}
 \bibliographystyle{unsrt}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
